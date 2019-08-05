@@ -27,7 +27,7 @@ from datetime import datetime
 __version__ = 0.1
 __description__ = """Byte Pair Encoding++ is a tool for hierarchical merging of character streams 
 into words and phrases."""
-__epilog__ = f"""Author : {__author__} """
+__epilog__ = f"""URL : https://github.com/thammegowda/bpepp """
 
 log.basicConfig(level=log.INFO)
 Codes = Dict[int, Tuple[int, ...]]
@@ -308,7 +308,7 @@ class BpeCodec:
         log.info(f"read {len(vocab)} types from {rdr.name}")
         return vocab
 
-    def encode(self, seq: str) -> List[int]:
+    def encode(self, seq: str, pieces=False) -> Union[List[int], List[str]]:
 
         res: List[int] = []
         """
@@ -341,19 +341,20 @@ class BpeCodec:
                 # either cases, reset the states;; and 'seq' should be at least one unit smaller
                 prev_node, idx = self.root, 0,
                 data_node, data_idx = None, -1
-        return res
+
+        return [self.vocab[x].name for x in res] if pieces else res
 
     def decode(self, seq: List[int]) -> List[str]:
         return [self.vocab[i].name for i in seq]
 
-    def encode_all(self, lines: Iterator[str], stringify=True) -> Iterator[Union[List[int], str]]:
+    def encode_all(self, lines: Iterator[str], stringify=True, pieces=False) \
+            -> Iterator[Union[List[int], str]]:
         for line in lines:
             line = self.space_tok.join(line.strip().split()) + self.space_tok
-            seq = self.encode(line)
+            seq = self.encode(line, pieces=pieces)
             if stringify:
-                yield ' '.join(str(x) for x in seq)
-            else:
-                yield seq
+                seq = ' '.join(str(x) for x in seq)
+            yield seq
 
     def decode_all(self, lines: Iterator[str], stringify=True) -> Iterator[Union[List[str], str]]:
         for line in lines:
@@ -361,9 +362,8 @@ class BpeCodec:
             seq = self.decode(seq)
             if stringify:
                 line = ''.join(str(x) for x in seq)
-                yield line.replace(self.space_tok, ' ').strip()  # restore regular space
-            else:
-                yield seq
+                seq = line.replace(self.space_tok, ' ').strip()  # restore regular space
+            yield seq
 
     @classmethod
     def read_lines(cls, streams: List[Union[TextIO, Path]]) -> Iterator[str]:
@@ -711,7 +711,7 @@ def learn_codes(cmd: str, inp: List[Path], vocab: Path, char_coverage: float = D
         BpeCodec.write_vocab(vocab_model_l2, out=vocab)
 
 
-def run(cmd: str, inp, vocab: Path, out: TextIO = None, **kwargs):
+def run(cmd: str, inp, vocab: Path, out: TextIO = None, pieces=False, **kwargs):
     assert cmd in ArgParser.cmd_choices
     if cmd.startswith('learn'):
         assert isinstance(inp, list) and isinstance(inp[0], Path)
@@ -721,7 +721,7 @@ def run(cmd: str, inp, vocab: Path, out: TextIO = None, **kwargs):
         assert isinstance(out, TextIO)
         bpe = BpeCodec(vocab)
         if cmd == 'encode':
-            lines = bpe.encode_all(inp)
+            lines = bpe.encode_all(inp, pieces=pieces)
         elif cmd == 'decode':
             lines = bpe.decode_all(inp)
         else:
@@ -754,38 +754,47 @@ class ArgParser(argparse.ArgumentParser):
         levels = [1, 2, 1, 0, 0]
         for level, sub_p in zip(levels, self.all_ps):
             self.add_iov(sub_p, level)
+
         for level, parsers in [(1, [self.l1_p, self.l_p]), (2, [self.l2_p, self.l_p])]:
             for parser in parsers:
                 self.add_learn_args(parser, level)
 
     def add_iov(self, parser, level):
-        if level == 0:  # encode decode has outputs
+        # all of them got vocabulary
+        parser.add_argument('-vf', '--vocab-size', '--vocab', dest='vocab',
+                            type=Path, help="Vocabulary Path", required=True)
+
+        cmd = parser.prog.split()[-1]
+        if cmd in {'encode', 'decode'}:  # encode decode has outputs
             parser.add_argument("inp", nargs="?", default=sys.stdin, type=argparse.FileType('r'),
                                 help=f"Input file.")
             parser.add_argument("-o", '--out', default=sys.stdout, type=argparse.FileType('w'),
                                 help="Path to output.")
+            if cmd == 'encode':
+                parser.add_argument("-p", '--pieces', action='store_true',
+                                    help='Output word piece string instead of word idx ints')
         else:
             fmt = 'One sentence per line; the tokens should be separated by a regular white space.'
-            if level == 2:
+            if cmd == 'learn2':
                 fmt = "One sequence per line. The token should be converted to integer ids from " \
                       " learn1/level1 and be separated by regular white spaces."
             # all others which are learn commands take Paths
             parser.add_argument("inp", nargs="+", type=Path, help=f"Input file(s) having {fmt}.")
 
-        parser.add_argument('-vf', '--vocab-size', '--vocab', dest='vocab',
-                            type=Path, help="Vocabulary Path", required=True)
-
     def add_learn_args(self, parser, level: int):
         assert level in {1, 2}
+        cmd = parser.prog.split()[-1]
         parser.add_argument(f'-mce{level}', f'--min-co-evidence-l{level}', type=int, default=5,
                             help="Minimum frequency of bigrams (co-occurrence evidence) to consider"
                             f" merging of pairs in {level}")
         parser.add_argument(f'-vs{level}', f'--vocab-size-l{level}', type=int, required=True,
                             help=f"vocab size of input sequences for level{level}.")
+
         if level == 1:
             parser.add_argument('-cc', '--char-coverage', type=float, default=DEF_CHAR_COVERAGE,
                                 help='Character coverage, range=[0.5, 1.0]')
-        if level == 2:
+
+        if cmd == 'learn2':
             parser.add_argument('--prepared', action='store_true',
                                 help='input is already prepared from level1.')
 
