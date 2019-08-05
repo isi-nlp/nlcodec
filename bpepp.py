@@ -50,8 +50,10 @@ CLS_TOK_IDX = CLS_TOK[1]
 RESERVED_TOKS = [PAD_TOK, UNK_TOK, BOS_TOK, EOS_TOK, CLS_TOK, SPACE_TOK]
 N_RESERVED_TOKS = len(RESERVED_TOKS)
 
-DEF_CHAR_COVERAGE = 0.9995
+#DEF_CHAR_COVERAGE = 0.9995
 DEF_MIN_CO_EV = 5
+DEF_CHAR_MIN_FREQ = 20   # minimum times a char should be seen to be included in l1 init vocab
+DEF_WORD_MIN_FREQ = 1    # minimum times a word should exist to be used for l1 vocab
 
 """
 Some terminology ; in case I forget my own thoughts 😝
@@ -450,10 +452,17 @@ class WordBPE:
     @classmethod
     def learn_subwords(cls, term_freqs: Dict[str, int], vocab_size: int,
                        min_co_evidence: int = DEF_MIN_CO_EV,
-                       char_coverage=DEF_CHAR_COVERAGE) -> List[Type]:
-        assert 0.5 < char_coverage <= 1.0
+                       char_min_freq=DEF_CHAR_MIN_FREQ,
+                       word_min_freq=DEF_WORD_MIN_FREQ) -> List[Type]:
+        assert char_min_freq >= 1
+        assert word_min_freq >= 1
 
-        term_freqs = {cls.prepare_word(word): freq for word, freq in term_freqs.items()}
+        log.info(f"Total types: {len(term_freqs)}")
+        term_freqs = {cls.prepare_word(word): freq for word, freq in term_freqs.items()
+                      if freq >= word_min_freq}
+        if word_min_freq > 1:
+            log.info(f"Total types after min_freq >= {word_min_freq}: {len(term_freqs)}")
+
         alphabet = coll.defaultdict(int)
         for term, freq in term_freqs.items():
             for ch in term:
@@ -463,27 +472,21 @@ class WordBPE:
                 alphabet[ch] += freq
             alphabet[term[-2:]] += freq  # ending + whitespace marker go together as a single byte
             """
-        if char_coverage < 1.0:
-            pairs = sorted(alphabet.items(), key=lambda x: x[1], reverse=True)
-            tot = sum(v for ch, v in pairs)
-            cumm = [[ch, v / tot] for ch, v in pairs]  # normalize by total
-            for i in range(1, len(cumm)):  # sum all from left to right
-                cumm[i][1] += cumm[i - 1][1]
-            includes = {ch: alphabet[ch] for ch, cum in cumm if cum <= char_coverage}
+        if char_min_freq > 1:
+            includes = {ch: freq for ch, freq in alphabet.items() if freq >= char_min_freq}
             excludes = {ch: ct for ch, ct in alphabet.items() if ch not in includes}
-            log.info(f'char coverage={char_coverage} of {tot}; '
-                     f' unked chars count:{sum(excludes.values())} from types:{excludes}')
-            alphabet = coll.defaultdict(int, includes)
+            log.info(f'unked chars count:{sum(excludes.values())} from types:{excludes}')
+            alphabet = includes
         else:
             log.info("Character coverage: full")
-        vocab = Type.with_reserved_types()  # initial vocab with reserved toks
 
-        [alphabet.pop(v.name) for v in vocab if v.name in alphabet]  # they are already in there
+        init_vocab = Type.with_reserved_types()  # initial vocab with reserved toks
+        [alphabet.pop(v.name, None) for v in init_vocab if v.name in alphabet]  # they are already in there
         alphabet = sorted(alphabet.items(), key=lambda x: x[1], reverse=True)  # high freq on top
 
-        vocab += [Type(name, level=Level.char, idx=idx, freq=freq)
-                  for idx, (name, freq) in enumerate(alphabet, start=len(vocab))]
-        return cls._learn_codes(term_freqs, vocab, min_co_evidence=min_co_evidence,
+        init_vocab += [Type(name, level=Level.char, idx=idx, freq=freq)
+                  for idx, (name, freq) in enumerate(alphabet, start=len(init_vocab))]
+        return cls._learn_codes(term_freqs, init_vocab, min_co_evidence=min_co_evidence,
                                 vocab_size=vocab_size)
 
     @classmethod
@@ -683,20 +686,24 @@ class BPELearn:
         return vocab
 
 
-def learn_codes(cmd: str, inp: List[Path], vocab: Path, char_coverage: float = DEF_CHAR_COVERAGE,
+def learn_codes(cmd: str, inp: List[Path], vocab: Path,
+                char_min_freq: int = DEF_CHAR_MIN_FREQ,
+                word_min_freq: int = DEF_WORD_MIN_FREQ,
                 vocab_size_l1: int = 0, min_co_evidence_l1: int = DEF_MIN_CO_EV,
-                vocab_size_l2: int = 0, min_co_evidence_l2: int = DEF_MIN_CO_EV, prepared=False):
+                vocab_size_l2: int = 0, min_co_evidence_l2: int = DEF_MIN_CO_EV,
+                prepared=False, vocab_l1: Optional[Path] = None):
+    vocab_l1 = vocab_l1 or vocab  # vocabulary l1
     if cmd in {'learn', 'learn1'}:
         assert not prepared  # accepts raw input only here
         seqs_raw = BpeCodec.read_lines(inp)
         vocab_model_l1 = WordBPE.learn_subwords_from_corpus(
             seqs_raw, vocab_size=vocab_size_l1, min_co_evidence=min_co_evidence_l1,
-            char_coverage=char_coverage)
-        BpeCodec.write_vocab(vocab_model_l1, out=vocab)
+            char_min_freq=char_min_freq, word_min_freq=word_min_freq)
+        BpeCodec.write_vocab(vocab_model_l1, out=vocab_l1)
 
     if cmd in {'learn', 'learn2'}:
-        assert vocab.exists()
-        vocab_model_l1 = BpeCodec.read_vocab(vocab)
+        assert vocab_l1.exists()
+        vocab_model_l1 = BpeCodec.read_vocab(vocab_l1)
 
         if prepared:
             seqs_l1 = BpeCodec.read_seqs(streams=inp)
@@ -707,7 +714,9 @@ def learn_codes(cmd: str, inp: List[Path], vocab: Path, char_coverage: float = D
         vocab_model_l2 = leaner_l2.learn_codes(n_merges=vocab_size_l2,
                                                min_co_evidence=min_co_evidence_l2,
                                                code_level=Level.phrase)
-        vocab.rename(vocab.with_suffix(".l1.txt"))  # move old file
+        if vocab_l1 == vocab: # dont overwrite
+            vocab.rename(vocab.with_suffix(".l1" + vocab.suffix))  # move old file
+
         BpeCodec.write_vocab(vocab_model_l2, out=vocab)
 
 
@@ -761,11 +770,13 @@ class ArgParser(argparse.ArgumentParser):
 
     def add_iov(self, parser, level):
         # all of them got vocabulary
-        parser.add_argument('-vf', '--vocab-size', '--vocab', dest='vocab',
-                            type=Path, help="Vocabulary Path", required=True)
+
 
         cmd = parser.prog.split()[-1]
         if cmd in {'encode', 'decode'}:  # encode decode has outputs
+            parser.add_argument('-vf', '--vocab-file', '--vocab', dest='vocab',
+                                type=Path, help="Vocabulary Path which should exist and be valid ",
+                                required=True)
             parser.add_argument("inp", nargs="?", default=sys.stdin, type=argparse.FileType('r'),
                                 help=f"Input file.")
             parser.add_argument("-o", '--out', default=sys.stdout, type=argparse.FileType('w'),
@@ -773,13 +784,17 @@ class ArgParser(argparse.ArgumentParser):
             if cmd == 'encode':
                 parser.add_argument("-p", '--pieces', action='store_true',
                                     help='Output word piece string instead of word idx ints')
+
         else:
+            parser.add_argument('-vf', '--vocab-file', '--vocab', dest='vocab', required=True,
+                                type=Path, help="Path where the final vocabulary should be saved")
             fmt = 'One sentence per line; the tokens should be separated by a regular white space.'
             if cmd == 'learn2':
                 fmt = "One sequence per line. The token should be converted to integer ids from " \
                       " learn1/level1 and be separated by regular white spaces."
             # all others which are learn commands take Paths
             parser.add_argument("inp", nargs="+", type=Path, help=f"Input file(s) having {fmt}.")
+
 
     def add_learn_args(self, parser, level: int):
         assert level in {1, 2}
@@ -791,10 +806,18 @@ class ArgParser(argparse.ArgumentParser):
                             help=f"vocab size of input sequences for level{level}.")
 
         if level == 1:
-            parser.add_argument('-cc', '--char-coverage', type=float, default=DEF_CHAR_COVERAGE,
-                                help='Character coverage, range=[0.5, 1.0]')
+            #parser.add_argument('-cc', '--char-coverage', type=float, default=DEF_CHAR_COVERAGE,
+            #                    help='Character coverage, range=[0.5, 1.0]')
+            parser.add_argument('-cmf', '--char-min-freq', type=int, default=DEF_CHAR_MIN_FREQ,
+                                help='minimum times a char should be seen to be included in'
+                                     ' l1 initial vocabulary.')
+            parser.add_argument('-wmf', '--word-min-freq', type=int, default=DEF_WORD_MIN_FREQ,
+                                help='minimum times a word should exist to be used for l1 model.')
 
         if cmd == 'learn2':
+            parser.add_argument('-vf1', '--vocab-file-l1', '--vocab-l1', dest='vocab_l1',
+                                type=Path, help="Vocabulary Path for L1 encoding."
+                                                " This file should exist and valid", required=True)
             parser.add_argument('--prepared', action='store_true',
                                 help='input is already prepared from level1.')
 
