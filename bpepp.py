@@ -726,8 +726,8 @@ def run(cmd: str, inp, vocab: Path, out: TextIO = None, pieces=False, **kwargs):
         assert isinstance(inp, list) and isinstance(inp[0], Path)
         learn_codes(cmd, inp, vocab, **kwargs)
     else:
-        assert isinstance(inp, TextIO)
-        assert isinstance(out, TextIO)
+        assert inp is sys.stdin or isinstance(inp, TextIO)
+        assert out is sys.stdout or isinstance(out, TextIO)
         bpe = BpeCodec(vocab)
         if cmd == 'encode':
             lines = bpe.encode_all(inp, pieces=pieces)
