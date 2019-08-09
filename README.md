@@ -40,7 +40,7 @@ optional arguments:
 # Authors 
 + [Thamme Gowda](https://twitter.com/thammegowda) 
 
-# License 
+# License
 > This software is Copyright © 2019 The University of Southern California. All Rights Reserved.
 
 Refer to [LICENSE.txt](LICENSE.txt) for full terms
