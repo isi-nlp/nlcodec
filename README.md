@@ -7,7 +7,7 @@ It supports Hierarchical BPE of two levels:
 
 # Installation 
 ```bash
-# Install from pypy 
+# Install from pypi  (TODO: for now this code is private)
 $ pip install bpepp
 
 # Install from github

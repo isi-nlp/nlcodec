@@ -24,7 +24,7 @@ import copy
 import json
 from datetime import datetime
 
-__version__ = 0.1
+__version__ = 0.2
 __description__ = """Byte Pair Encoding++ is a tool for hierarchical merging of character streams 
 into words and phrases."""
 __epilog__ = f"""URL : https://github.com/thammegowda/bpepp """
