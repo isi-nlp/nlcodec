@@ -50,10 +50,9 @@ CLS_TOK_IDX = CLS_TOK[1]
 RESERVED_TOKS = [PAD_TOK, UNK_TOK, BOS_TOK, EOS_TOK, CLS_TOK, SPACE_TOK]
 N_RESERVED_TOKS = len(RESERVED_TOKS)
 
-#DEF_CHAR_COVERAGE = 0.9995
 DEF_MIN_CO_EV = 5
-DEF_CHAR_MIN_FREQ = 20   # minimum times a char should be seen to be included in l1 init vocab
-DEF_WORD_MIN_FREQ = 1    # minimum times a word should exist to be used for l1 vocab
+DEF_CHAR_MIN_FREQ = 20  # minimum times a char should be seen to be included in l1 init vocab
+DEF_WORD_MIN_FREQ = 1  # minimum times a word should exist to be used for l1 vocab
 
 """
 Some terminology ; in case I forget my own thoughts 😝
@@ -183,17 +182,9 @@ class TrNode(Generic[T, D]):  # Trie Node or Tree Node
         return self.kids[idxs[0]].get_node(idxs=idxs[1:], create_missing=create_missing)
 
     @property
-    def is_root(self):
-        return self.parent is None
-
-    @property
     def n_kids(self):
         """Number of immediate children"""
         return len(self.kids)
-
-    @property
-    def is_leaf(self):
-        return self.n_kids == 0
 
     @property
     def has_data(self):
@@ -349,6 +340,10 @@ class BpeCodec:
     def decode(self, seq: List[int]) -> List[str]:
         return [self.vocab[i].name for i in seq]
 
+    def decode_as_str(self, seq: List[int]) -> str:
+        # restore regular space
+        return ''.join(self.decode(seq)).replace(self.space_tok, ' ').strip()
+
     def encode_all(self, lines: Iterator[str], stringify=True, pieces=False) \
             -> Iterator[Union[List[int], str]]:
         for line in lines:
@@ -361,11 +356,7 @@ class BpeCodec:
     def decode_all(self, lines: Iterator[str], stringify=True) -> Iterator[Union[List[str], str]]:
         for line in lines:
             seq = list(map(int, line.strip().split()))
-            seq = self.decode(seq)
-            if stringify:
-                line = ''.join(str(x) for x in seq)
-                seq = line.replace(self.space_tok, ' ').strip()  # restore regular space
-            yield seq
+            return (self.decode_as_str if stringify else self.decode)(seq)
 
     @classmethod
     def read_lines(cls, streams: List[Union[TextIO, Path]]) -> Iterator[str]:
@@ -454,6 +445,15 @@ class WordBPE:
                        min_co_evidence: int = DEF_MIN_CO_EV,
                        char_min_freq=DEF_CHAR_MIN_FREQ,
                        word_min_freq=DEF_WORD_MIN_FREQ) -> List[Type]:
+        """
+        :param term_freqs:
+        :param vocab_size: final vocab size: reserved + chars + user_specified  + merges;
+          special case, when `vocab_size=-1` the returned vocab will have just reserved + chars
+        :param min_co_evidence: min co evidence for pair merges
+        :param char_min_freq: characters below this frequency will be unk'ed
+        :param word_min_freq: words below this frequency will be excluded for learning BPE
+        :return: List of Type
+        """
         assert char_min_freq >= 1
         assert word_min_freq >= 1
 
@@ -481,11 +481,17 @@ class WordBPE:
             log.info("Character coverage: full")
 
         init_vocab = Type.with_reserved_types()  # initial vocab with reserved toks
-        [alphabet.pop(v.name, None) for v in init_vocab if v.name in alphabet]  # they are already in there
+        [alphabet.pop(v.name, None) for v in init_vocab if v.name in alphabet]  # remove reserved ch
         alphabet = sorted(alphabet.items(), key=lambda x: x[1], reverse=True)  # high freq on top
 
         init_vocab += [Type(name, level=Level.char, idx=idx, freq=freq)
-                  for idx, (name, freq) in enumerate(alphabet, start=len(init_vocab))]
+                       for idx, (name, freq) in enumerate(alphabet, start=len(init_vocab))]
+
+        if vocab_size == -1:
+            log.warning(f'Since vocab_size={vocab_size}; not going to do any L1 merges')
+            log.info(f'Found initial vocab size of {len(init_vocab)}')
+            return init_vocab
+
         return cls._learn_codes(term_freqs, init_vocab, min_co_evidence=min_co_evidence,
                                 vocab_size=vocab_size)
 
@@ -507,8 +513,9 @@ class BPELearn:
     # TODO: write this in c++ or rust and bind it here
     """
 
-    def __init__(self, seqs: Iterator[Union[Seq, Tuple[Seq, int]]], vocab: List[Type]):
-
+    def __init__(self, seqs: Iterator[Union[Seq, Tuple[Seq, int]]], vocab: List[Type],
+                 troubles='replace'):
+        assert troubles in ['ignore', 'replace']
         # Check one to one map: type.name <-> idx
         assert len(set(v.idx for v in vocab)) == len(set(v.name for v in vocab))
         for i, v in enumerate(vocab):
@@ -523,7 +530,7 @@ class BPELearn:
         self.bi_ixs: Dict[Bigram, Set[LnNode]] = coll.defaultdict(set)
 
         log.info("Going to build corpus stats index; This might take lot of time and memory")
-        n_seqs, n_ignored, bar_msg = 0, 0, ''
+        n_seqs, n_ignored, n_replaced, bar_msg = 0, 0, 0, ''
         with tqdm.tqdm(enumerate(seqs), unit='seqs', dynamic_ncols=True) as data_bar:
             for idx, seq in data_bar:
                 freq = 1  # default = 1 freq
@@ -538,9 +545,15 @@ class BPELearn:
                     log.warning(f"Skipping empty sequence at idx {idx + 1}")
                     continue
 
-                if self._is_problematic_seq(seq):
-                    n_ignored += 1
-                    continue
+                if self._is_troublesome_seq(seq):
+                    if troubles == 'ignore':
+                        n_ignored += 1
+                        continue
+                    elif troubles == 'replace':
+                        seq = self._replace_trouble(seq)
+                        n_replaced += 1
+                    else:
+                        raise Exception('This should not be happening!')
 
                 nodes = LnNode.from_seq(seq, freq=freq)
                 assert len(seq) == len(nodes)
@@ -552,28 +565,38 @@ class BPELearn:
                     self.bi_ixs[bigm].add(nodes[i])  # bigm found at node i
                     self.uni[seq[i]] += freq
                 self.uni[seq[-1]] += freq  # the last unigram count; not covered in the above loop
-                bar_msg = f'Seqs: Total={n_seqs} Dropped={n_ignored}; MaxRSS={max_RSS()[1]}'
+                err_msg = f'Replaced={n_replaced}' if troubles == 'replace' \
+                    else f'Ignored={n_ignored}'
+                bar_msg = f'Seqs: Total={n_seqs} {err_msg}; MaxRSS={max_RSS()[1]}'
                 data_bar.set_postfix_str(bar_msg)
         log.info(f"Created index; {bar_msg}")
         self.validate_index()
 
-    def _is_problematic_seq(self, seq) -> bool:
-        # Wisdom: detect problems ahead and walk away iff
-        #  (1) Solving them is not fun. (2) Possible to live without solving them.
+    def _is_troublesome_seq(self, seq) -> bool:
         for i in range(2, len(seq)):
             """
-            repetitions are bad; we are going to ignore them as of now; for example see below
+            repetitions are bad; for example see below
             case1: seq= x 1 1 y  ; uni={x:1, 1:2, y:1}; bi= {(x,1):1, (1,1)=1, (1, y)=1}
             case2:, seq= x 1 1 1 y; uni={x:1, 1:3, y:1}; bi= {(x,1):1, (1,1)=2, (1, y)=1}
             case3, seq= x 1 1 1 1 y; uni={x:1, 1:4, y:1}; bi= {(x,1):1, (1,1)=3, (1, y)=1}
-            => case 1 is okay;  uni[1] -= bi[(1,1)] two times as usual
-            => case 2 is bad;   uni[1] -= bi[(1,1)] two times as is a mess up
-            => case 3 or longer is really a mess up; total mess up of replacements
+            => case1 is okay;  uni[1] -= bi[(1,1)] two times as usual
+            => case2 is bad;   uni[1] -= bi[(1,1)] two times as is a mess up
+            => case3 or longer is really a mess up; total mess up of replacements
             """
-            # three or more consecutive same codepoints --> problem!
+            # three or more consecutive same code points --> trouble!
             if seq[i] == seq[i - 1] == seq[i - 2]:
                 return True
         return False
+
+    def _replace_trouble(self, seq: List) -> List:
+        # edit sequences like a111b --> a11b
+        # ie. replace sequence of three or more repeated bytes into at most 2
+        buffer = [1] * len(seq)
+        for i in range(1, len(seq)):
+            if seq[i] == seq[i - 1]:
+                buffer[i] = buffer[i - 1] + 1
+        res = [x for x, flag in zip(seq, buffer) if flag <= 2]
+        return res
 
     @property
     def vocab_size(self) -> int:
@@ -696,6 +719,7 @@ def learn_codes(cmd: str, inp: List[Path], vocab: Path,
     if cmd in {'learn', 'learn1'}:
         assert not prepared  # accepts raw input only here
         seqs_raw = BpeCodec.read_lines(inp)
+        assert vocab_size_l1 > 0 or vocab_size_l1 == -1  # -1 means only characters
         vocab_model_l1 = WordBPE.learn_subwords_from_corpus(
             seqs_raw, vocab_size=vocab_size_l1, min_co_evidence=min_co_evidence_l1,
             char_min_freq=char_min_freq, word_min_freq=word_min_freq)
@@ -714,7 +738,7 @@ def learn_codes(cmd: str, inp: List[Path], vocab: Path,
         vocab_model_l2 = leaner_l2.learn_codes(n_merges=vocab_size_l2,
                                                min_co_evidence=min_co_evidence_l2,
                                                code_level=Level.phrase)
-        if vocab_l1 == vocab: # dont overwrite
+        if vocab_l1 == vocab:  # dont overwrite
             vocab.rename(vocab.with_suffix(".l1" + vocab.suffix))  # move old file
 
         BpeCodec.write_vocab(vocab_model_l2, out=vocab)
@@ -771,7 +795,6 @@ class ArgParser(argparse.ArgumentParser):
     def add_iov(self, parser, level):
         # all of them got vocabulary
 
-
         cmd = parser.prog.split()[-1]
         if cmd in {'encode', 'decode'}:  # encode decode has outputs
             parser.add_argument('-vf', '--vocab-file', '--vocab', dest='vocab',
@@ -795,19 +818,18 @@ class ArgParser(argparse.ArgumentParser):
             # all others which are learn commands take Paths
             parser.add_argument("inp", nargs="+", type=Path, help=f"Input file(s) having {fmt}.")
 
-
     def add_learn_args(self, parser, level: int):
         assert level in {1, 2}
         cmd = parser.prog.split()[-1]
         parser.add_argument(f'-mce{level}', f'--min-co-evidence-l{level}', type=int, default=5,
                             help="Minimum frequency of bigrams (co-occurrence evidence) to consider"
-                            f" merging of pairs in {level}")
-        parser.add_argument(f'-vs{level}', f'--vocab-size-l{level}', type=int, required=True,
-                            help=f"vocab size of input sequences for level{level}.")
-
+                            f" merging of pairs in {level}.")
+        vocab_msg = f"Vocab size of input sequences for level{level}."
         if level == 1:
-            #parser.add_argument('-cc', '--char-coverage', type=float, default=DEF_CHAR_COVERAGE,
-            #                    help='Character coverage, range=[0.5, 1.0]')
+            vocab_msg += ' Special value -1 limits to character vocabulary and does no merging.'
+        parser.add_argument(f'-vs{level}', f'--vocab-size-l{level}', type=int, required=True,
+                            help=vocab_msg)
+        if level == 1:
             parser.add_argument('-cmf', '--char-min-freq', type=int, default=DEF_CHAR_MIN_FREQ,
                                 help='minimum times a char should be seen to be included in'
                                      ' l1 initial vocabulary.')
