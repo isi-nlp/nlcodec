@@ -302,7 +302,7 @@ class BpeCodec:
         return vocab
 
     def encode(self, seq: str, pieces=False) -> Union[List[int], List[str]]:
-
+        seq = self.space_tok.join(seq.strip().split()) + self.space_tok
         res: List[int] = []
         """
           T  h  i  s  _  X  i  s  _ 
@@ -347,7 +347,6 @@ class BpeCodec:
     def encode_all(self, lines: Iterator[str], stringify=True, pieces=False) \
             -> Iterator[Union[List[int], str]]:
         for line in lines:
-            line = self.space_tok.join(line.strip().split()) + self.space_tok
             seq = self.encode(line, pieces=pieces)
             if stringify:
                 seq = ' '.join(str(x) for x in seq)
