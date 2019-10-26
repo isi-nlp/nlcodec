@@ -16,18 +16,18 @@ import json
 from datetime import datetime
 import logging as log
 
-# my own custom data structures
-from dstruct import TrNode
+from nlcodec.dstruct import TrNode
+from nlcodec import __version__
 
 log.basicConfig(level=log.INFO)
 
-__version__ = 0.1
 Codes = Dict[int, Tuple[int, ...]]
 Seq = List[int]
 Bigram = Tuple[int, int]
 
 
 class Reseved:
+
     PAD_TOK = '<pad>', 0
     UNK_TOK = '<unk>', 1  # unk = '⁇'  # U+2047  to make up some OOV characters
     BOS_TOK = '<s>', 2
@@ -305,7 +305,7 @@ class BPEScheme(CharScheme):
     def learn(cls, data: Iterator[str], vocab_size: int=0, **kwargs) -> List[Type]:
         assert vocab_size > 0
         assert not kwargs
-        from bpe import BPELearn
+        from .bpe import BPELearn
         vocab = BPELearn.learn_subwords_from_corpus(corpus=data, vocab_size=vocab_size)
         return vocab
 

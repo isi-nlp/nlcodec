@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-#
+# -*- coding: utf-8 -*-
 __author__ = "Thamme Gowda [tg@isi.edu]"
 # Created: July 2019
 #
@@ -13,7 +13,6 @@ __author__ = "Thamme Gowda [tg@isi.edu]"
 #
 import argparse
 import sys
-import logging as log
 from pathlib import Path
 import collections as coll
 from typing import List, TextIO, Dict, Tuple, Union, Iterator, Optional, Set, TypeVar, Generic
@@ -29,7 +28,10 @@ __description__ = """Byte Pair Encoding++ is a tool for hierarchical merging of 
 into words and phrases."""
 __epilog__ = f"""URL : https://github.com/thammegowda/bpepp """
 
+import logging as log
 log.basicConfig(level=log.INFO)
+
+
 Codes = Dict[int, Tuple[int, ...]]
 Seq = List[int]
 Bigram = Tuple[int, int]
@@ -56,7 +58,7 @@ DEF_WORD_MIN_FREQ = 1  # minimum times a word should exist to be used for l1 voc
 
 """
 Some terminology ; in case I forget my own thoughts 😝
-Approach: this is like hierarchical bype pair encoding (BPE) with two level compressions
+Approach: this is like hierarchical byte pair encoding (BPE) with two level compressions
 
 level0: characters of the dataset 
 level1 : expand word tokens as character seqs, do BPE to compress it
@@ -69,6 +71,7 @@ level0: user defined tokens; treat them just like level0 chars (dont further spl
 The original paper, subword-nmt (Senrich et al) did BPE at level1 started from level0.
 
 Didnt find any others who go to second level BPE yet (TODO: lit review, check check check)
+Update: David Chiang and his students tried this, but found that L2 doesnt help. I confirm
 
 Initially, I was planning to write a wrapper for sentencepiece (Kudo et al),
 However I dropped the idea, bcoz integration became a mess; we like pretty code :)  
@@ -97,7 +100,7 @@ def max_RSS(who=resource.RUSAGE_SELF) -> Tuple[int, str]:
     mem = resource.getrusage(who).ru_maxrss
     h_mem = mem
     if 'darwin' in sys.platform:  # "man getrusage 2" says we get bytes
-        h_mem /= 10 ** 3  # bytes to mega
+        h_mem /= 10 ** 3  # bytes to kilo
     unit = 'KB'
     if h_mem >= 10 ** 3:
         h_mem /= 10 ** 3  # kilo to mega
@@ -683,7 +686,7 @@ class BPELearn:
                 assert a_node.freq == b_node.freq
                 x_node, y_node = a_node.left, b_node.right
                 # update : x a b y => x R y
-                b_node.delete()  # delete() takes care of linking a → y and a ←y
+                b_node.delete()  # delete() takes care of linking a → y and a ← y
                 new_node = a_node  # reuse a node as new_node/R
                 new_node.val = new_code  # reuse a as new_node/R
                 # Note: the above edits to a and b nodes do-not/should-not change __hash__

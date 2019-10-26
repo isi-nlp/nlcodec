@@ -1,4 +1,4 @@
-import bpepp
+import nlcodec
 from pathlib import Path
 
 from setuptools import setup
@@ -18,9 +18,9 @@ classifiers = [  # copied from https://pypi.org/classifiers/
 ]
 
 setup(
-    name='bpepp',
-    version=bpepp.__version__,
-    description=bpepp.__description__,
+    name='nlcodec',
+    version=nlcodec.__version__,
+    description=nlcodec.__description__,
     long_description=long_description,
     long_description_content_type='text/markdown',
     license='University of Southern California (USC) Restricted License',
@@ -31,9 +31,10 @@ setup(
     platforms=['any'],
     author='Thamme Gowda',
     author_email='tgowdan@gmail.com',
-    py_modules=['bpepp'],  # for a package dir with __init__.py use packages=['bpepp'],
+    #py_modules=['bpepp'],  # for a package dir with __init__.py use packages=['bpepp'],
+    packages=['nlcodec'],
     entry_points={
-        'console_scripts': ['bpepp=bpepp:main'],
+        'console_scripts': ['nlcodec=nlcodec.nlcodec:main'],
     },
     install_requires=['tqdm']
 )
