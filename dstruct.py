@@ -1,0 +1,101 @@
+#!/usr/bin/env python
+#
+# Author: Thamme Gowda [tg (at) isi (dot) edu] 
+# Created: 2019-10-25
+
+from typing import List, Dict, Union, Optional, TypeVar, Generic
+from dataclasses import dataclass, field
+
+
+@dataclass(repr=False)
+class LnNode:  # doubly linked list node data structure; used for learning BPE
+    val: int
+    left: Optional['LnNode'] = None
+    right: Optional['LnNode'] = None
+    freq: int = 1
+
+    def __eq__(self, other):
+        # caution: these calls are recursive on left and right; cycles would cause infinite loop
+        return (other.val == self.val and other.freq == self.freq and
+                other.left == self.left and other.right == self.right)
+
+    def __hash__(self):
+        return id(self)  # quick and dirty hash; not sure how this mess if we use multiprocessing
+
+    def delete(self):
+        """
+        deletes this node from the list
+        :return:
+        """
+        x, y = self.left, self.right
+        if x:  # right links : x → self → y  => x → y
+            x.right = y
+        if y:  # left links  : x ← self ← y  => x ← y
+            y.left = x
+
+    @classmethod
+    def from_seq(cls, string: Union[str, List[int]], freq=1) -> List['LnNode']:
+        """
+        makes a doubly linked list from string
+        :param string: input string (of integers recommended)
+        :param freq: frequency of string in corpus (for scaling
+        :return: List of Nodes, doubly linked to lefts and rights
+        """
+        nodes = [cls(ch, freq=freq) for ch in string]
+        for i, n in enumerate(nodes):
+            if i > 0:
+                n.left = nodes[i - 1]
+            if i + 1 < len(nodes):
+                n.right = nodes[i + 1]
+        return nodes
+
+    def __repr__(self):
+        lefts, rights = [], []
+
+        cur = self.left
+        while cur:
+            lefts.append(str(cur.val))
+            cur = cur.left
+        cur = self.right
+        while cur:
+            rights.append(str(cur.val))
+            cur = cur.right
+        return ' '.join(reversed(lefts)) + f' *{self.val}* ' + ' '.join(rights)
+
+
+T = TypeVar('T')  # T for index; Dont use I, since 'I' agree with pep008
+D = TypeVar('D')  # D for data
+
+
+@dataclass()
+class TrNode(Generic[T, D]):  # Trie Node or Tree Node
+    idx: T
+    name: Optional[str] = None
+    data: Optional[D] = None
+    parent: Optional['TrNode'] = None
+    kids: Dict[T, 'TrNode'] = field(default_factory=dict)
+
+    def get_node(self, idxs, create_missing: bool = True) -> 'TrNode[T, D]':
+        if not idxs:
+            return self
+        if create_missing and idxs[0] not in self.kids:  # make one
+            self.kids[idxs[0]] = TrNode(idx=idxs[0], parent=self)
+        return self.kids[idxs[0]].get_node(idxs=idxs[1:], create_missing=create_missing)
+
+    @property
+    def n_kids(self):
+        """Number of immediate children"""
+        return len(self.kids)
+
+    @property
+    def has_data(self):
+        return self.data is not None
+
+    @property
+    def size(self):
+        """Number of nodes in the tree at this node. Counts self and all the kids"""
+        return 1 + sum(k.size for k in self.kids.values())
+
+    @property
+    def data_node_count(self):
+        return (1 if self.has_data else 0) + sum(k.data_node_count for k in self.kids.values())
