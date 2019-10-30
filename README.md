@@ -1,5 +1,5 @@
 # NLCodec
-A set of Natural Language Encoder-Decoders (codecs), that we generally use in preprocessing stage of 
+A set of (low level) Natural Language Encoder-Decoders (codecs), that we generally use in preprocessing stage of 
 NLP tools. The codecs include :
 1. Character
 2. Word
