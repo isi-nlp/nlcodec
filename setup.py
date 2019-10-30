@@ -34,7 +34,7 @@ setup(
     #py_modules=['bpepp'],  # for a package dir with __init__.py use packages=['bpepp'],
     packages=['nlcodec'],
     entry_points={
-        'console_scripts': ['nlcodec=nlcodec.nlcodec:main'],
+        'console_scripts': ['nlcodec=nlcodec.__main__:main'],
     },
     install_requires=['tqdm']
 )

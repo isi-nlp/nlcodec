@@ -10,8 +10,7 @@ import sys
 import copy
 from tqdm import tqdm
 
-from nlcodec.dstruct import LnNode
-from nlcodec.nlcodec import Type, log, Level, Reseved
+from nlcodec import log, LnNode, Type, Level, Reseved
 
 Codes = Dict[int, Tuple[int, ...]]
 Seq = List[int]

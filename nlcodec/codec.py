@@ -14,16 +14,9 @@ from tqdm import tqdm
 from dataclasses import dataclass
 import json
 from datetime import datetime
-import logging as log
 
 from nlcodec.dstruct import TrNode
-from nlcodec import __version__
-
-log.basicConfig(level=log.INFO)
-
-Codes = Dict[int, Tuple[int, ...]]
-Seq = List[int]
-Bigram = Tuple[int, int]
+from nlcodec import __version__, log
 
 
 class Reseved:
@@ -42,15 +35,6 @@ class Reseved:
     CLS_IDX = CLS_TOK[1]
 
     ALL = [PAD_TOK, UNK_TOK, BOS_TOK, EOS_TOK, CLS_TOK, SPACE_TOK]
-
-    @classmethod
-    def new(cls, types: List[str]):
-        res = [tok for tok, idx in cls.ALL]
-        if types:
-            assert len(set(types)) == len(types)
-            assert len(set(types) & set(res)) == 0
-            res += types
-        return res
 
     @classmethod
     def validate(cls, table: List['Type']):
@@ -226,7 +210,8 @@ class CharScheme(WordScheme):
     space_char = '▁'  # U+2581 same as google/sentencepiece
 
     @property
-    def name(self):
+    @classmethod
+    def name(cls):
         return "char"
 
     @classmethod
@@ -259,7 +244,8 @@ class BPEScheme(CharScheme):
         return root
 
     @property
-    def name(self):
+    @classmethod
+    def name(cls):
         return "bpe"
 
     def encode_str(self, line: str) -> List[str]:
@@ -326,7 +312,6 @@ def learn_vocab(inp, level, model, vocab_size):
     table = Scheme.learn(inp, vocab_size=vocab_size)
     Type.write_out(table=table, out=model)
 
-
 def load_scheme(path: Path) -> EncoderScheme:
     types, meta = Type.read_vocab(path)
     assert meta
@@ -355,58 +340,3 @@ def decode(inp: Iterator[str], scheme: EncoderScheme, indices=False) -> Iterator
         else:
             line = scheme.decode_str(seq)
         yield line
-
-
-def write_lines(lines: Iterator[str], out: TextIO, line_break='\n'):
-    for line in lines:
-        out.write(line)
-        out.write(line_break)
-
-
-def parse_args() -> Dict[str, Any]:
-    p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    p.add_argument("task", choices=['learn', 'encode', 'decode'], help='task')
-
-    p.add_argument("--level", choices=['char', 'word', 'bpe'],
-                   help='Encoding Level; Valid only for "learn" task')
-
-    p.add_argument('-i', '--inp', type=argparse.FileType('r'), default=sys.stdin,
-                   help='Input file path')
-    p.add_argument('-o', '--out', type=argparse.FileType('w'), default=sys.stdout,
-                   help='Output file path. Not valid for "learn" task')
-    p.add_argument('-m', '--model', type=Path, help='Path to model', required=True)
-    p.add_argument('-vs', '--vocab_size', type=int, default=-1,
-                   help='Vocabulary size. Valid only for task=learn.')
-    p.add_argument('-idx', '--indices', action='store_true', default=None,
-                   help='Indices instead of strings. Valid for task=encode and task=decode')
-    p.add_argument('-v', '--verbose', action='store_true', help='verbose mode. DEBUG log level.')
-    args = vars(p.parse_args())
-    if args.pop('verbose'):
-        log.getLogger().setLevel(level=log.DEBUG)
-    return args
-
-
-def main():
-    args = parse_args()
-    task = args.pop('task')
-    if task == 'learn':
-        args.pop('out')      # No output
-        args.pop('indices')  # No output
-        learn_vocab(**args)
-    elif task in ('encode', 'decode'):
-        scheme = load_scheme(args.pop('model'))
-        inp, out, indices = args['inp'], args['out'], args.get('indices', False)
-        if task == 'encode':
-            recs = encode(inp, scheme, indices=indices)
-            if indices:
-                recs = ([str(idx) for idx in seq] for seq in recs)
-            recs = (' '.join(seq) for seq in recs)
-        else:
-            recs = decode(inp, scheme, indices=indices)
-        write_lines(recs, out)
-    else:
-        raise NotImplementedError(task + ' not implemented')
-
-
-if __name__ == '__main__':
-    main()
