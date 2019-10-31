@@ -183,6 +183,7 @@ class EncoderScheme:
 
 
 class WordScheme(EncoderScheme):
+    level = Level.word
 
     @classmethod
     def encode_str(cls, line: str) -> List[str]:
@@ -221,7 +222,7 @@ class WordScheme(EncoderScheme):
         if vocab_size > 0 and len(vocab) + len(stats) > vocab_size:
             log.info(f"truncating vocab at size={vocab_size}")
             stats = stats[:vocab_size - len(vocab)]
-        vocab += [Type(name=name, idx=idx, freq=freq, level=Level.char)
+        vocab += [Type(name=name, idx=idx, freq=freq, level=cls.level)
                   for idx, (name, freq) in enumerate(stats, start=len(vocab))]
         log.info(f"Total {cls} vocab size {len(vocab):,}")
         return vocab
@@ -229,6 +230,7 @@ class WordScheme(EncoderScheme):
 
 class CharScheme(WordScheme):
     space_char = '▁'  # U+2581 same as google/sentencepiece
+    level = Level.char
 
     @property
     @classmethod
@@ -246,6 +248,8 @@ class CharScheme(WordScheme):
     # learn() is same as parent class: WordScheme
 
 class BPEScheme(CharScheme):
+
+    level = Level.subword
 
     def __init__(self, table: List[Type]):
         super().__init__(table=table)
