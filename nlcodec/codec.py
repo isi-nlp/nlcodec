@@ -88,9 +88,13 @@ class Type:  # Type as in word type vs token
         return Type(name, level=level, idx=idx, freq=freq, kids=kids)
 
     @classmethod
-    def write_out(cls, table: List['Type'], out: Union[Path, TextIO]):
+    def write_out(cls, table: List['Type'], out: Union[Path, str, TextIO]):
 
-        wrtr = out.open('w', encoding='utf8', errors='ignore') if isinstance(out, Path) else out
+        if isinstance(out, Path) or isinstance(out, str):
+            wrtr = open(out, 'w', encoding='utf8', errors='ignore')
+        else:
+            wrtr = out
+
         levels = dict(coll.Counter(v.level for v in table))
         max_level = max(levels.keys())
         meta = dict(total=len(table), version=__version__, levels=levels, max_level=max_level,
@@ -105,8 +109,13 @@ class Type:  # Type as in word type vs token
         log.info(f"Wrote {len(table)} to {wrtr.name}")
 
     @classmethod
-    def read_vocab(cls, inp: Union[Path, TextIO]) -> Tuple[List['Type'], Optional[Dict]]:
-        rdr = inp.open('r', encoding='utf8', errors='ignore') if isinstance(inp, Path) else inp
+    def read_vocab(cls, inp: Union[Path, str, TextIO]) -> Tuple[List['Type'], Optional[Dict]]:
+
+        if isinstance(inp, Path) or isinstance(inp, str):
+            rdr = open(inp, 'r', encoding='utf8', errors='ignore')
+        else:
+            rdr = inp
+
         lines = list(l.strip() for l in rdr)
         meta = None
         if lines[0].startswith("#{"):
@@ -319,7 +328,7 @@ REGISTRY = {
 
 
 def learn_vocab(inp, level, model, vocab_size, min_freq=-1):
-    if not min_freq or min_freq < -1:
+    if not min_freq or min_freq < 1:
         min_freq = WORD_MIN_FREQ if level == 'word' else CHAR_MIN_FREQ
         log.info(f"level={level} => default min_freq={min_freq}")
     else:
