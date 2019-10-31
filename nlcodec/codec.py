@@ -16,6 +16,10 @@ from tqdm import tqdm
 from nlcodec import __version__, log
 from nlcodec.dstruct import TrNode
 
+WORD_MIN_FREQ = 2
+CHAR_MIN_FREQ = 20
+
+
 
 class Reseved:
 
@@ -314,7 +318,12 @@ REGISTRY = {
 }
 
 
-def learn_vocab(inp, level, model, vocab_size, min_freq):
+def learn_vocab(inp, level, model, vocab_size, min_freq=-1):
+    if not min_freq or min_freq < -1:
+        min_freq = WORD_MIN_FREQ if level == 'word' else CHAR_MIN_FREQ
+        log.info(f"level={level} => default min_freq={min_freq}")
+    else:
+        log.info(f"level={level} => user given min_freq={min_freq}")
     log.info(f"Learn Vocab for level={level} and store at {model}")
     log.info(f"data ={inp}")
     Scheme = REGISTRY[level]

@@ -8,9 +8,7 @@ import sys
 from pathlib import Path
 
 from nlcodec import log, learn_vocab, load_scheme, encode, decode
-
-WORD_MIN_FREQ = 2
-CHAR_MIN_FREQ = 20
+from nlcodec.codec import WORD_MIN_FREQ, CHAR_MIN_FREQ
 
 
 def write_lines(lines: Iterator[str], out: TextIO, line_break='\n'):
@@ -71,11 +69,6 @@ def main():
         args.pop('out')  # No output
         args.pop('indices')  # No output
         assert args.get('level'), 'argument --level is required for "learn" task'
-        if not args.get('min_freq'):
-            args['min_freq'] = WORD_MIN_FREQ if args.get('level') == 'word' else CHAR_MIN_FREQ
-            log.info(f"level={args['level']} => default min_freq={args['min_freq']}")
-        else:
-            log.info(f"level={args['level']} => user given min_freq={args['min_freq']}")
         learn_vocab(**args)
     elif task in ('encode', 'decode'):
         scheme = load_scheme(args.pop('model'))
