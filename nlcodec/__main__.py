@@ -9,6 +9,9 @@ from pathlib import Path
 
 from nlcodec import log, learn_vocab, load_scheme, encode, decode
 
+WORD_MIN_FREQ = 2
+CHAR_MIN_FREQ = 20
+
 
 def write_lines(lines: Iterator[str], out: TextIO, line_break='\n'):
     for line in lines:
@@ -33,23 +36,31 @@ def parse_args() -> Dict[str, Any]:
     "decode" - decodes an already encoded dataset
     "estimate" - estimates quality attributes of an encoding''')
 
-    p.add_argument('-l', '--level', choices=['char', 'word', 'bpe'],
-                   help='Encoding Level; Valid only for "learn" task')
-
     p.add_argument('-i', '--inp', type=argparse.FileType('r'), default=sys.stdin,
                    help='Input file path')
     p.add_argument('-o', '--out', type=argparse.FileType('w'), default=sys.stdout,
                    help='Output file path. Not valid for "learn" or "estimate" task')
     p.add_argument('-m', '--model', type=Path, help='Path to model aka vocabulary file',
                    required=True)
-    p.add_argument('-vs', '--vocab_size', type=int, default=-1,
-                   help='Vocabulary size. Valid only for task=learn.')
+
     p.add_argument('-idx', '--indices', action='store_true', default=None,
                    help='Indices instead of strings. Valid for task=encode and task=decode')
-    p.add_argument('-v', '--verbose', action='store_true', help='verbose mode. DEBUG log level.')
+
+    learn_args = p.add_argument_group("args for task=learn")
+    learn_args.add_argument('-vs', '--vocab_size', type=int, default=-1,
+                            help='Vocabulary size. Valid only for task=learn. This is required for'
+                                 ' "bpe", but optional for "word" and "char" models, specifying it'
+                                 ' will trim the vocabulary at given top most frequent types.')
+    learn_args.add_argument('-l', '--level', choices=['char', 'word', 'bpe'],
+                            help='Encoding Level; Valid only for task=learn')
+    learn_args.add_argument('-mf', '--min_freq', default=None, type=int,
+                            help='Minimum frequency of types for considering inclusion in vocabulary. '
+                            'Types fewer than this frequency will be ignored. '
+                            f'For --level=word, freq is type freq and default is {WORD_MIN_FREQ}.'
+                            f'for --level=char or --level=bpe, characters fewer than this value'
+                            f' will be excluded. default={CHAR_MIN_FREQ}')
+
     args = vars(p.parse_args())
-    if args.pop('verbose'):
-        log.getLogger().setLevel(level=log.DEBUG)
     return args
 
 
@@ -57,8 +68,14 @@ def main():
     args = parse_args()
     task = args.pop('task')
     if task == 'learn':
-        args.pop('out')      # No output
+        args.pop('out')  # No output
         args.pop('indices')  # No output
+        assert args.get('level'), 'argument --level is required for "learn" task'
+        if not args.get('min_freq'):
+            args['min_freq'] = WORD_MIN_FREQ if args.get('level') == 'word' else CHAR_MIN_FREQ
+            log.info(f"level={args['level']} => default min_freq={args['min_freq']}")
+        else:
+            log.info(f"level={args['level']} => user given min_freq={args['min_freq']}")
         learn_vocab(**args)
     elif task in ('encode', 'decode'):
         scheme = load_scheme(args.pop('model'))

@@ -18,7 +18,7 @@ Bigram = Tuple[int, int]
 
 DEF_MIN_CO_EV = 5
 DEF_CHAR_MIN_FREQ = 20  # minimum times a char should be seen to be included in l1 init vocab
-DEF_WORD_MIN_FREQ = 2   # minimum times a word should exist to be used for l1 vocab
+DEF_WORD_MIN_FREQ = 1   # minimum times a word should exist to be used for l1 vocab
 
 
 def max_RSS(who=resource.RUSAGE_SELF) -> Tuple[int, str]:

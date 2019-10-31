@@ -4,19 +4,17 @@
 # Created: 2019-10-16
 
 import abc
-
-import argparse
-import sys
-from pathlib import Path
 import collections as coll
-from typing import List, TextIO, Dict, Tuple, Union, Iterator, Optional, Any
-from tqdm import tqdm
-from dataclasses import dataclass
 import json
+from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
+from typing import List, TextIO, Dict, Tuple, Union, Iterator, Optional
 
-from nlcodec.dstruct import TrNode
+from tqdm import tqdm
+
 from nlcodec import __version__, log
+from nlcodec.dstruct import TrNode
 
 
 class Reseved:
@@ -67,6 +65,10 @@ class Type:  # Type as in word type vs token
         cols = [str(self.idx), self.name, str(self.level), str(self.freq),
                 ' '.join(str(k.idx) for k in self.kids) if self.kids else '']
         return delim.join(cols)
+
+    @property
+    def is_reserved(self) -> bool:
+        return self.level == Level.reserved
 
     @classmethod
     def parse(cls, line: str, vocab: List['Type'], delim='\t'):
@@ -183,7 +185,7 @@ class WordScheme(EncoderScheme):
         return "word"
 
     @classmethod
-    def learn(cls, data: Iterator[str], vocab_size: int=0, **kwargs) -> List[Type]:
+    def learn(cls, data: Iterator[str], vocab_size: int=0, min_freq:int=1, **kwargs) -> List[Type]:
         assert not kwargs
         log.info(f"Building {cls} vocab.. This might take some time")
         stats = coll.Counter()
@@ -196,7 +198,13 @@ class WordScheme(EncoderScheme):
             if r_type.name in stats:
                 log.warning(f"Found reserved type {r_type.name} with freq {stats[r_type.name]} ")
                 del stats[r_type.name]
+
         stats = sorted(stats.items(), key=lambda x: x[1], reverse=True)
+        if min_freq and min_freq > 1:
+            log.info(f"Excluding terms with frequency < {min_freq};  |freq >= 1|: {len(stats):,}")
+            stats = [(t, f) for t,f in stats if f >= min_freq]
+            log.info(f"|freq >= {min_freq}| : {len(stats):,}")
+
         if vocab_size > 0 and len(vocab) + len(stats) > vocab_size:
             log.info(f"truncating vocab at size={vocab_size}")
             stats = stats[:vocab_size - len(vocab)]
@@ -288,11 +296,12 @@ class BPEScheme(CharScheme):
         return ''.join(seq).replace(self.space_char, ' ').strip()
 
     @classmethod
-    def learn(cls, data: Iterator[str], vocab_size: int=0, **kwargs) -> List[Type]:
+    def learn(cls, data: Iterator[str], vocab_size: int=0, min_freq=1, **kwargs) -> List[Type]:
         assert vocab_size > 0
         assert not kwargs
         from .bpe import BPELearn
-        vocab = BPELearn.learn_subwords_from_corpus(corpus=data, vocab_size=vocab_size)
+        vocab = BPELearn.learn_subwords_from_corpus(corpus=data, vocab_size=vocab_size,
+                                                    char_min_freq=min_freq)
         return vocab
 
 
@@ -305,11 +314,11 @@ REGISTRY = {
 }
 
 
-def learn_vocab(inp, level, model, vocab_size):
+def learn_vocab(inp, level, model, vocab_size, min_freq):
     log.info(f"Learn Vocab for level={level} and store at {model}")
     log.info(f"data ={inp}")
     Scheme = REGISTRY[level]
-    table = Scheme.learn(inp, vocab_size=vocab_size)
+    table = Scheme.learn(inp, vocab_size=vocab_size, min_freq=min_freq)
     Type.write_out(table=table, out=model)
 
 def load_scheme(path: Path) -> EncoderScheme:
