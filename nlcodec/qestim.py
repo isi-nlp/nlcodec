@@ -6,18 +6,20 @@
 
 import argparse
 import sys
-from nlcodec import EncoderScheme, log, load_scheme
 from dataclasses import dataclass
 from pathlib import Path
-from tqdm import tqdm
-from typing import Iterator, Union, Optional, List, Any
+from typing import Iterator, List, Any
+
 import numpy as np
+from tqdm import tqdm
+
+from nlcodec import EncoderScheme, log, load_scheme
 
 NDArray = np.ndarray
 
+
 @dataclass()
 class CodecQuality:
-
     n_types: int
     imbalance: Any
     n_tokens: int
@@ -36,8 +38,8 @@ class QualityEstimator:
     @staticmethod
     def validate_distribution(distr):
         assert distr.dtype == np.float
-        assert abs(np.sum(distr) - 1.0) < 1e-4 # sum to 1
-        assert np.sum(distr < 0) == 0   # no negatives
+        assert abs(np.sum(distr) - 1.0) < 1e-4  # sum to 1
+        assert np.sum(distr < 0) == 0  # no negatives
 
     @classmethod
     def earth_mov_dist(cls, before: NDArray, after: NDArray, moving_cost=1):
@@ -46,7 +48,6 @@ class QualityEstimator:
         assert len(before) == len(after)
         assert moving_cost > 0
         return np.sum(np.abs(after - before) * moving_cost)
-
 
     @classmethod
     def kl_div(self, base, distr):
@@ -64,7 +65,7 @@ class QualityEstimator:
         for px, qx in zip(base, distr):
             if px > 0:
                 assert qx > 0
-                total += px * np.log( px / qx)
+                total += px * np.log(px / qx)
         return total
 
     @classmethod
@@ -76,10 +77,9 @@ class QualityEstimator:
         middle = 0.5 * (base + distr)
         return 0.5 * (cls.kl_div(base=base, distr=middle) + cls.kl_div(base=distr, distr=middle))
 
-
     def _estimate(self, seqs: Iterator[List[int]]) -> CodecQuality:
         stats = [0] * self.codec.vocab_size
-        #lengths = coll.defaultdict(int)
+        # lengths = coll.defaultdict(int)
         n_seqs = 0
         for seq in tqdm(seqs):
             n_seqs += 1
@@ -88,9 +88,18 @@ class QualityEstimator:
 
         n_toks = sum(stats)
         mean_len = n_toks / n_seqs
-        n_types = len(stats)
+        n_types = self.codec.vocab_size
+
+        # exclude the reserved types which dont surface in prediction
+        excludes = [typ for typ in self.codec.table if typ.is_reserved and stats[typ.idx] == 0]
+        n_types -= len(excludes)  # exclude reserved
+        for typ in reversed(excludes):  # delete from right
+            log.info(f'Remove type from balance check: {typ}')
+            del stats[typ.idx]
+
+
         n_toks = sum(stats)
-        uniform = np.full(shape=(n_types), fill_value=(1/n_types), dtype=np.float)
+        uniform = np.full(shape=(n_types), fill_value=(1 / n_types), dtype=np.float)
         distr = np.array(stats) / n_toks
         emd = self.earth_mov_dist(before=distr, after=uniform)
         kl_div = self.js_div(base=uniform, distr=distr)
@@ -123,4 +132,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
