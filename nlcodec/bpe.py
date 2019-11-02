@@ -69,7 +69,7 @@ class BPELearn:
     def create_index(self, seqs, troubles):
         log.info("Going to build corpus stats index; This might take lot of time and memory")
         n_seqs, n_ignored, n_replaced, bar_msg = 0, 0, 0, ''
-        with tqdm(enumerate(seqs), unit='seqs', dynamic_ncols=True) as data_bar:
+        with tqdm(enumerate(seqs), unit='seqs', dynamic_ncols=True, mininterval=2) as data_bar:
             for idx, seq in data_bar:
                 freq = 1  # default = 1 freq
                 if isinstance(seq, tuple):  # if freq is available

@@ -203,7 +203,7 @@ class WordScheme(EncoderScheme):
         assert not kwargs
         log.info(f"Building {cls} vocab.. This might take some time")
         stats = coll.Counter()
-        for line in tqdm(data):
+        for line in tqdm(data, mininterval=2):
             stats.update(cls.encode_str(line.strip()))
         log.info(f"Found {len(stats):,} types and {sum(stats.values()):,} tokens")
 
