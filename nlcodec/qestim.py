@@ -24,6 +24,7 @@ class CodecQuality:
     imbalance: Any
     n_tokens: int
     mean_seq_len: float
+    unk_count: int = 0
 
 
 class QualityEstimator:
@@ -90,6 +91,8 @@ class QualityEstimator:
         mean_len = n_toks / n_seqs
         n_types = self.codec.vocab_size
 
+        unk_count = stats[self.codec.unk_idx]
+
         # exclude the reserved types which dont surface in prediction
         excludes = [typ for typ in self.codec.table if typ.is_reserved and stats[typ.idx] == 0]
         n_types -= len(excludes)  # exclude reserved
@@ -106,7 +109,7 @@ class QualityEstimator:
         imb_measure = (emd, kl_div)
 
         return CodecQuality(n_types=n_types, imbalance=imb_measure, n_tokens=n_toks,
-                            mean_seq_len=mean_len)
+                            mean_seq_len=mean_len, unk_count=unk_count)
 
 
 def estimate(codec_path, data):
