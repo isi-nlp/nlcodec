@@ -3,8 +3,9 @@
 # Author: Thamme Gowda [tg (at) isi (dot) edu] 
 # Created: 2019-10-25
 
-from typing import List, Dict, Union, Optional, TypeVar, Generic
+from typing import List, Dict, Union, Optional, TypeVar, Generic, Any
 from dataclasses import dataclass, field
+import heapq
 
 
 @dataclass(repr=False)
@@ -99,3 +100,28 @@ class TrNode(Generic[T, D]):  # Trie Node or Tree Node
     @property
     def data_node_count(self):
         return (1 if self.has_data else 0) + sum(k.data_node_count for k in self.kids.values())
+
+class MaxHeap:
+
+    "Offers Max Heap which is a wrapper to fast min heap implementation from heapq "
+
+    def __init__(self, items: Dict[Any, int]):
+        self.min_heap = [(-val, node) for node, val in items.items() ]
+        heapq.heapify(self.min_heap)
+
+    def push(self, node, val):
+        """
+        Adds a node to heap while maintaining heap property
+        :param node: node data
+        :param val: priority value
+        :return:
+        """
+        heapq.heappush(self.min_heap, (-val, node))
+
+    def pop(self):
+        """returns the max item (task, priority)"""
+        val, task = heapq.heappop(self.min_heap)
+        return task, -val
+
+    def __len__(self):
+        return len(self.min_heap)
