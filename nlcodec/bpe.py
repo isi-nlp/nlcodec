@@ -106,7 +106,7 @@ class BPELearn:
                 err_msg = f'Replaced={n_replaced}' if troubles == 'replace' \
                     else f'Ignored={n_ignored}'
                 bar_msg = f'Seqs: Total={n_seqs} {err_msg}; MaxRSS={max_RSS()[1]}'
-                data_bar.set_postfix_str(bar_msg)
+                data_bar.set_postfix_str(bar_msg, refresh=False)
         log.info(f"Created index; {bar_msg}")
 
     def _is_troublesome_seq(self, seq) -> bool:
@@ -249,11 +249,11 @@ class BPELearn:
                     bi_ixs[(new_code, y_node.val)].add(new_node)
 
             if skipped_nodes:
-                skip_count = len(skipped_nodes)
-                log.warning(f"Skipped: {max_pair} → {new_code} replacement {skip_count} times")
-                uni[a] += skip_count
-                uni[b] += skip_count
-                bi[max_pair] = bi.get(max_pair, 0) + skip_count
+                skip_freq = sum(n.freq for n in skipped_nodes)
+                log.warning(f"Skipped: {max_pair} → {new_code} replacement {skip_freq} times")
+                uni[a] += skip_freq
+                uni[b] += skip_freq
+                bi[max_pair] = skip_freq
                 bi_ixs[max_pair] = skipped_nodes
         return vocab
 
