@@ -210,6 +210,7 @@ class BPELearn:
             assert uni[a] >= 0
             assert uni[b] >= 0
             update_nodes = bi_ixs.pop(max_pair)  # also removed from bi_ixs
+            skipped_nodes = set()
             for node in update_nodes:
                 a_node, b_node = node, node.right
                 dirty = a_node.val != a or b_node.val != b  # check that the linked list is proper
@@ -219,6 +220,11 @@ class BPELearn:
                 assert not dirty
                 assert a_node.freq == b_node.freq
                 x_node, y_node = a_node.left, b_node.right
+                if (x_node and x_node.val == new_code) or (y_node and y_node.val == new_code):
+                    # this is a problematic case --> skip the update
+                    skipped_nodes.add(node)
+                    continue
+
                 # update : x a b y => x R y
                 b_node.delete()  # delete() takes care of linking a → y and a ← y
                 new_node = a_node  # reuse a node as new_node/R
@@ -242,6 +248,13 @@ class BPELearn:
                     bi[(new_code, y_node.val)] += b_node.freq
                     bi_ixs[(new_code, y_node.val)].add(new_node)
 
+            if skipped_nodes:
+                skip_count = len(skipped_nodes)
+                log.warning(f"Skipped: {max_pair} → {new_code} replacement {skip_count} times")
+                uni[a] += skip_count
+                uni[b] += skip_count
+                bi[max_pair] = bi.get(max_pair, 0) + skip_count
+                bi_ixs[max_pair] = skipped_nodes
         return vocab
 
     @classmethod
