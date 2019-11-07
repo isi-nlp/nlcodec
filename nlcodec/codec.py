@@ -72,6 +72,9 @@ class Type:  # Type as in word type vs token
     def is_reserved(self) -> bool:
         return self.level == Level.reserved
 
+    def signature(self) -> str:
+        return f'{self.idx}:{self.name}→{"|".join(f"{k.idx}:{k.name}" for k in self.kids or [])}'
+
     @classmethod
     def parse(cls, line: str, vocab: List['Type'], delim='\t'):
         cols = line.strip().split(delim)
@@ -134,7 +137,13 @@ class Type:  # Type as in word type vs token
 
 class EncoderScheme:
 
-    def __init__(self, table: List[Type], validate=True):
+    def __init__(self, table: List[Type], validate=True, invertible=True):
+        """
+
+        :param table: list of `Type`s
+        :param validate: validate that reserved types are found
+        :param invertible: validate that the idx->str and str->idx are invertible
+        """
         if validate:
             Reseved.validate(table)
             self.unk_idx = Reseved.UNK_IDX
@@ -147,8 +156,19 @@ class EncoderScheme:
         self.vocab_size = len(table)
         self.table = table
         self.idx_to_str = [t.name for t in table]
-        self.str_to_idx = {tok: idx for idx, tok in enumerate(self.idx_to_str)}
-        assert len(self.idx_to_str) == len(self.str_to_idx)
+        if invertible:
+            self.str_to_idx = {tok: idx for idx, tok in enumerate(self.idx_to_str)}
+            assert len(self.idx_to_str) == len(self.str_to_idx)
+        else:
+            # keep the first occurrence TODO: maybe keep both and do random; str_to_idx be multiset
+            self.str_to_idx = {}
+            for idx, typ in enumerate(table):
+                if typ.name in self.str_to_idx:
+                    typ2 = table[self.str_to_idx[typ.name]]
+                    log.debug(f"skip:: {typ.signature()}; it conflicts with {typ2.signature()}")
+                else:
+                    self.str_to_idx[typ.name] = idx
+        self.invertible = invertible
 
     def __len__(self):
         return self.vocab_size
@@ -257,9 +277,9 @@ class BPEScheme(CharScheme):
     level = Level.subword
 
     def __init__(self, table: List[Type]):
-        super().__init__(table=table)
+        super().__init__(table=table, invertible=False)
         self.root = self.make_vocab_prefix_trie(self.table)
-        log.info(f"Vocab size={len(self.table)}; trie root has nodes={self.root.size}"
+        log.info(f"Vocab size={len(self)}; trie root has nodes={self.root.size}"
                  f" but data_nodes={self.root.data_node_count}")
         assert self.unk_idx
 
