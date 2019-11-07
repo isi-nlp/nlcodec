@@ -10,7 +10,7 @@ import sys
 import copy
 from tqdm import tqdm
 
-from nlcodec import log, LnNode, Type, Level, Reseved
+from nlcodec import log, LnNode, Type, Level, Reseved, MaxHeap
 
 Codes = Dict[int, Tuple[int, ...]]
 Seq = List[int]
@@ -18,7 +18,7 @@ Bigram = Tuple[int, int]
 
 DEF_MIN_CO_EV = 5
 DEF_CHAR_MIN_FREQ = 20  # minimum times a char should be seen to be included in l1 init vocab
-DEF_WORD_MIN_FREQ = 1   # minimum times a word should exist to be used for l1 vocab
+DEF_WORD_MIN_FREQ = 1  # minimum times a word should exist to be used for l1 vocab
 
 
 def max_RSS(who=resource.RUSAGE_SELF) -> Tuple[int, str]:
@@ -69,7 +69,7 @@ class BPELearn:
     def create_index(self, seqs, troubles):
         log.info("Going to build corpus stats index; This might take lot of time and memory")
         n_seqs, n_ignored, n_replaced, bar_msg = 0, 0, 0, ''
-        with tqdm(enumerate(seqs), unit='seqs', dynamic_ncols=True, mininterval=2) as data_bar:
+        with tqdm(enumerate(seqs), unit='seqs', dynamic_ncols=True, mininterval=1) as data_bar:
             for idx, seq in data_bar:
                 freq = 1  # default = 1 freq
                 if isinstance(seq, tuple):  # if freq is available
@@ -105,7 +105,7 @@ class BPELearn:
                 self.uni[seq[-1]] += freq  # the last unigram count; not covered in the above loop
                 err_msg = f'Replaced={n_replaced}' if troubles == 'replace' \
                     else f'Ignored={n_ignored}'
-                bar_msg = f'Seqs: Total={n_seqs} {err_msg}; MaxRSS={max_RSS()[1]}'
+                bar_msg = f'{err_msg}; MaxRSS={max_RSS()[1]}'
                 data_bar.set_postfix_str(bar_msg, refresh=False)
         log.info(f"Created index; {bar_msg}")
 
@@ -180,17 +180,34 @@ class BPELearn:
             for instance level=1 for word bpe; level=2 for seq bpe
         :return:
         """
-        bi, uni, bi_ixs = self.bi, self.uni, self.bi_ixs
+        uni, bi_ixs = self.uni, self.bi_ixs
+        heap = MaxHeap(self.bi)
+        heap_dirty = coll.defaultdict(int)  # subtractions that aren't updated in maxheap
         vocab = self.vocab
         new_code = self.vocab_size - 1  # -1 because the loop starts with an increment
-        for i in range(n_merges):
-            new_code += 1
-            a, b = max_pair = max(bi, key=bi.get)  # get the max freq bigram
-            pair_freq = bi[max_pair]
+        i = 0
+        while i <= n_merges:
+            # Using MaxHeap for faster lookup of max. But heap gets a bit dirty, so a bit of cleanup
+            max_pair, pair_freq = heap.pop()
+            while max_pair in heap_dirty:  # clean all max [airs until a clean value
+                freq_update = heap_dirty.pop(max_pair)
+                assert freq_update <= 0
+                correct_freq = pair_freq + freq_update  # correct value
+                assert correct_freq >= 0, f'{max_pair}:{pair_freq}, Δ={freq_update} = {correct_freq}'
+                if correct_freq > 0:
+                    heap.push(max_pair, correct_freq)
+                max_pair, pair_freq = heap.pop()
+
+            # here the  actual loop begins
+
             if pair_freq < min_co_evidence:
                 log.warning(f"Early stop; max evidence found is {pair_freq} "
                             f"but min required is {min_co_evidence}")
                 break
+
+            a, b = max_pair
+            i += 1
+            new_code += 1
             log.info(f"{(100 * i / n_merges):.2f}% :: {new_code} || {a:4}:{uni[a]:5}"
                      f" || {b:4}:{uni[b]:5} || {pair_freq:,} || {vocab[a].name} {vocab[b].name}")
 
@@ -201,7 +218,6 @@ class BPELearn:
             vocab.append(new_type)
 
             # updates: update bigram and unigram counts
-            del bi[max_pair]  # remove it; it is no longer a bigram
             uni[new_code] = pair_freq  # this bigram is now a new unigram
             # unigram counts drop ; since some of their bigrams are removed
             uni[a] -= pair_freq
@@ -211,6 +227,7 @@ class BPELearn:
             assert uni[b] >= 0
             update_nodes = bi_ixs.pop(max_pair)  # also removed from bi_ixs
             skipped_nodes = set()
+            heap_deltas = coll.defaultdict(int)
             for node in update_nodes:
                 a_node, b_node = node, node.right
                 dirty = a_node.val != a or b_node.val != b  # check that the linked list is proper
@@ -220,6 +237,7 @@ class BPELearn:
                 assert not dirty
                 assert a_node.freq == b_node.freq
                 x_node, y_node = a_node.left, b_node.right
+                # three repeated nodes are trouble. so skip them
                 if (x_node and x_node.val == new_code) or (y_node and y_node.val == new_code):
                     # this is a problematic case --> skip the update
                     skipped_nodes.add(node)
@@ -231,29 +249,38 @@ class BPELearn:
                 new_node.val = new_code  # reuse a as new_node/R
                 # Note: the above edits to a and b nodes do-not/should-not change __hash__
 
-                if x_node and bi[(x_node.val, a)] > 0:
+                if x_node and bi_ixs.get((x_node.val, a)):
                     # remove (x_node_val, a) from bi and bi_ixs
-                    bi[(x_node.val, a)] -= x_node.freq
-                    assert bi[(x_node.val, a)] >= 0
+                    heap_deltas[(x_node.val, a)] -= x_node.freq
                     bi_ixs[(x_node.val, a)].remove(x_node)
+
                     # add (x_node_val, R) to bi and bi_ixs
-                    bi[(x_node.val, new_code)] += x_node.freq
+                    heap_deltas[(x_node.val, new_code)] += x_node.freq
                     bi_ixs[(x_node.val, new_code)].add(x_node)
-                if y_node and bi[(b, y_node.val)] > 0:
+                if y_node and bi_ixs.get((b, y_node.val)):
                     # remove (b, y_node.val) from bi and bi_ixs
-                    bi[(b, y_node.val)] -= b_node.freq
-                    assert bi[(b, y_node.val)] >= 0
+                    heap_deltas[(b, y_node.val)] -= b_node.freq
+
                     bi_ixs[(b, y_node.val)].remove(b_node)
                     # add (R, y_node.val) to bi and bi_ixs
-                    bi[(new_code, y_node.val)] += b_node.freq
+                    heap_deltas[(new_code, y_node.val)] += b_node.freq
+
                     bi_ixs[(new_code, y_node.val)].add(new_node)
+
+            for pair, delta in heap_deltas.items():
+                if delta > 0:  # these are new insertions, and they can go directly to heap
+                    assert new_code in pair
+                    heap.push(pair, delta)
+                elif delta < 0:  # one of those subtractions, which cant be directly updated
+                    assert new_code not in pair
+                    heap_dirty[pair] += delta
 
             if skipped_nodes:
                 skip_freq = sum(n.freq for n in skipped_nodes)
                 log.warning(f"Skipped: {max_pair} → {new_code} replacement {skip_freq} times")
                 uni[a] += skip_freq
                 uni[b] += skip_freq
-                bi[max_pair] = skip_freq
+                heap.push(max_pair, skip_freq)
                 bi_ixs[max_pair] = skipped_nodes
         return vocab
 
@@ -264,7 +291,6 @@ class BPELearn:
         # subword-nmt (senrich et al 2016) did </w> at the end;
         # 0.2 of subword-nmt puts last char and </w> together
         return word + cls.space_tok
-
 
     @classmethod
     def _make_idxs(cls, voc_idx: Dict[str, int], term_freqs: Dict[str, int]) \

@@ -20,9 +20,7 @@ WORD_MIN_FREQ = 2
 CHAR_MIN_FREQ = 20
 
 
-
 class Reseved:
-
     PAD_TOK = '<pad>', 0
     UNK_TOK = '<unk>', 1  # unk = '⁇'  # U+2047  to make up some OOV characters
     BOS_TOK = '<s>', 2
@@ -161,11 +159,11 @@ class EncoderScheme:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def encode_str(self, line: str) -> List[str]:
+    def encode_str(cls, line: str) -> List[str]:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def decode_str(self, seq: List[str]) -> str:
+    def decode_str(cls, seq: List[str]) -> str:
         raise NotImplementedError()
 
     def encode(self, line: str) -> List[int]:
@@ -180,6 +178,7 @@ class EncoderScheme:
     @abc.abstractmethod
     def learn(cls, data: Iterator[str], **kwargs) -> List[Type]:
         raise NotImplementedError()
+
 
 
 class WordScheme(EncoderScheme):
@@ -199,13 +198,19 @@ class WordScheme(EncoderScheme):
         return "word"
 
     @classmethod
-    def learn(cls, data: Iterator[str], vocab_size: int=0, min_freq:int=1, **kwargs) -> List[Type]:
-        assert not kwargs
-        log.info(f"Building {cls} vocab.. This might take some time")
+    def term_frequencies(cls, data:Iterator[str]) -> Dict[str, int]:
         stats = coll.Counter()
-        for line in tqdm(data, mininterval=2):
+        for line in tqdm(data, mininterval=1):
             stats.update(cls.encode_str(line.strip()))
         log.info(f"Found {len(stats):,} types and {sum(stats.values()):,} tokens")
+        return stats
+
+    @classmethod
+    def learn(cls, data: Iterator[str], vocab_size: int = 0, min_freq: int = 1, **kwargs) -> List[
+        Type]:
+        assert not kwargs
+        log.info(f"Building {cls} vocab.. This might take some time")
+        stats = cls.term_frequencies(data=data)
 
         vocab = Reseved.with_reserved_types()
         for r_type in vocab:
@@ -216,7 +221,7 @@ class WordScheme(EncoderScheme):
         stats = sorted(stats.items(), key=lambda x: x[1], reverse=True)
         if min_freq and min_freq > 1:
             log.info(f"Excluding terms with frequency < {min_freq};  |freq >= 1|: {len(stats):,}")
-            stats = [(t, f) for t,f in stats if f >= min_freq]
+            stats = [(t, f) for t, f in stats if f >= min_freq]
             log.info(f"|freq >= {min_freq}| : {len(stats):,}")
 
         if vocab_size > 0 and len(vocab) + len(stats) > vocab_size:
@@ -247,8 +252,8 @@ class CharScheme(WordScheme):
 
     # learn() is same as parent class: WordScheme
 
-class BPEScheme(CharScheme):
 
+class BPEScheme(CharScheme):
     level = Level.subword
 
     def __init__(self, table: List[Type]):
@@ -313,12 +318,13 @@ class BPEScheme(CharScheme):
         return ''.join(seq).replace(self.space_char, ' ').strip()
 
     @classmethod
-    def learn(cls, data: Iterator[str], vocab_size: int=0, min_freq=1, **kwargs) -> List[Type]:
+    def learn(cls, data: Iterator[str], vocab_size: int = 0, min_freq=1, **kwargs) -> List[Type]:
         assert vocab_size > 0
         assert not kwargs
+        term_freqs = WordScheme.term_frequencies(data)
         from .bpe import BPELearn
-        vocab = BPELearn.learn_subwords_from_corpus(corpus=data, vocab_size=vocab_size,
-                                                    char_min_freq=min_freq)
+        vocab = BPELearn.learn_subwords(term_freqs=term_freqs, vocab_size=vocab_size,
+                                        char_min_freq=min_freq)
         return vocab
 
 
@@ -342,6 +348,7 @@ def learn_vocab(inp, level, model, vocab_size, min_freq=-1):
     Scheme = REGISTRY[level]
     table = Scheme.learn(inp, vocab_size=vocab_size, min_freq=min_freq)
     Type.write_out(table=table, out=model)
+
 
 def load_scheme(path: Path) -> EncoderScheme:
     types, meta = Type.read_vocab(path)

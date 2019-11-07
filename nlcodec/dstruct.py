@@ -123,5 +123,9 @@ class MaxHeap:
         val, task = heapq.heappop(self.min_heap)
         return task, -val
 
+    def peek(self):
+        val, task = self.min_heap[0]
+        return task, -val
+
     def __len__(self):
         return len(self.min_heap)
