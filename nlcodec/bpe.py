@@ -182,52 +182,47 @@ class BPELearn:
         """
         uni, bi_ixs = self.uni, self.bi_ixs
         heap = MaxHeap(self.bi)
-        heap_dirty = coll.defaultdict(int)  # subtractions that aren't updated in maxheap
+        heap_dirty = coll.defaultdict(int)  #subtractions aren't updated in max-heap, they are here
         vocab = self.vocab
-        new_code = self.vocab_size - 1  # -1 because the loop starts with an increment
-        i = 0
-        while i <= n_merges:
+        for i in range(n_merges):
             # Using MaxHeap for faster lookup of max. But heap gets a bit dirty, so a bit of cleanup
             max_pair, pair_freq = heap.pop()
             while max_pair in heap_dirty:  # clean all max [airs until a clean value
                 freq_update = heap_dirty.pop(max_pair)
-                assert freq_update <= 0
-                correct_freq = pair_freq + freq_update  # correct value
-                assert correct_freq >= 0, f'{max_pair}:{pair_freq}, Δ={freq_update} = {correct_freq}'
-                if correct_freq > 0:
-                    heap.push(max_pair, correct_freq)
+                assert freq_update < 0   # only decrements are valid. increments make this wrong
+                corr_freq = pair_freq + freq_update  # correct value
+                assert corr_freq >= 0, f'{max_pair}:{pair_freq}, Δ={freq_update} = {corr_freq}'
+                if corr_freq > 0:       # exclude zero count
+                    heap.push(max_pair, corr_freq)
                 max_pair, pair_freq = heap.pop()
 
             # here the  actual loop begins
-
             if pair_freq < min_co_evidence:
                 log.warning(f"Early stop; max evidence found is {pair_freq} "
                             f"but min required is {min_co_evidence}")
                 break
 
+            new_type_idx = len(vocab)
             a, b = max_pair
-            i += 1
-            new_code += 1
-            log.info(f"{(100 * i / n_merges):.2f}% :: {new_code} || {a:4}:{uni[a]:5}"
+            log.info(f"{(100 * i / n_merges):.2f}% :: {new_type_idx} || {a:4}:{uni[a]:5}"
                      f" || {b:4}:{uni[b]:5} || {pair_freq:,} || {vocab[a].name} {vocab[b].name}")
 
             # code -> bigram   (flatten out bigram;  resolve interim codes
-            new_type = Type(vocab[a].name + vocab[b].name, idx=new_code, freq=pair_freq,
+            new_type = Type(vocab[a].name + vocab[b].name, idx=new_type_idx, freq=pair_freq,
                             level=code_level, kids=(vocab[a], vocab[b]))
-            assert len(vocab) == new_type.idx
             vocab.append(new_type)
 
             # updates: update bigram and unigram counts
-            uni[new_code] = pair_freq  # this bigram is now a new unigram
+            uni[new_type_idx] = pair_freq  # this bigram is now a new unigram
             # unigram counts drop ; since some of their bigrams are removed
             uni[a] -= pair_freq
             uni[b] -= pair_freq
             # however; the counts shouldn't go negative
             assert uni[a] >= 0
             assert uni[b] >= 0
-            update_nodes = bi_ixs.pop(max_pair)  # also removed from bi_ixs
             skipped_nodes = set()
             heap_deltas = coll.defaultdict(int)
+            update_nodes = bi_ixs.pop(max_pair)  # also removed from bi_ixs
             for node in update_nodes:
                 a_node, b_node = node, node.right
                 dirty = a_node.val != a or b_node.val != b  # check that the linked list is proper
@@ -238,7 +233,7 @@ class BPELearn:
                 assert a_node.freq == b_node.freq
                 x_node, y_node = a_node.left, b_node.right
                 # three repeated nodes are trouble. so skip them
-                if (x_node and x_node.val == new_code) or (y_node and y_node.val == new_code):
+                if (x_node and x_node.val == new_type_idx) or (y_node and y_node.val == new_type_idx):
                     # this is a problematic case --> skip the update
                     skipped_nodes.add(node)
                     continue
@@ -246,7 +241,7 @@ class BPELearn:
                 # update : x a b y => x R y
                 b_node.delete()  # delete() takes care of linking a → y and a ← y
                 new_node = a_node  # reuse a node as new_node/R
-                new_node.val = new_code  # reuse a as new_node/R
+                new_node.val = new_type_idx  # reuse a as new_node/R
                 # Note: the above edits to a and b nodes do-not/should-not change __hash__
 
                 if x_node and bi_ixs.get((x_node.val, a)):
@@ -255,33 +250,35 @@ class BPELearn:
                     bi_ixs[(x_node.val, a)].remove(x_node)
 
                     # add (x_node_val, R) to bi and bi_ixs
-                    heap_deltas[(x_node.val, new_code)] += x_node.freq
-                    bi_ixs[(x_node.val, new_code)].add(x_node)
+                    heap_deltas[(x_node.val, new_type_idx)] += x_node.freq
+                    bi_ixs[(x_node.val, new_type_idx)].add(x_node)
                 if y_node and bi_ixs.get((b, y_node.val)):
                     # remove (b, y_node.val) from bi and bi_ixs
                     heap_deltas[(b, y_node.val)] -= b_node.freq
-
                     bi_ixs[(b, y_node.val)].remove(b_node)
-                    # add (R, y_node.val) to bi and bi_ixs
-                    heap_deltas[(new_code, y_node.val)] += b_node.freq
 
-                    bi_ixs[(new_code, y_node.val)].add(new_node)
+                    # add (R, y_node.val) to bi and bi_ixs
+                    heap_deltas[(new_type_idx, y_node.val)] += b_node.freq
+                    bi_ixs[(new_type_idx, y_node.val)].add(new_node)
 
             for pair, delta in heap_deltas.items():
                 if delta > 0:  # these are new insertions, and they can go directly to heap
-                    assert new_code in pair
+                    assert new_type_idx in pair
                     heap.push(pair, delta)
                 elif delta < 0:  # one of those subtractions, which cant be directly updated
-                    assert new_code not in pair
+                    assert new_type_idx not in pair
                     heap_dirty[pair] += delta
 
             if skipped_nodes:
                 skip_freq = sum(n.freq for n in skipped_nodes)
-                log.warning(f"Skipped: {max_pair} → {new_code} replacement {skip_freq} times")
+                log.warning(f"Skipped: {max_pair} → {new_type_idx} replacement {skip_freq} times")
                 uni[a] += skip_freq
                 uni[b] += skip_freq
-                heap.push(max_pair, skip_freq)
+                uni[new_type_idx] -= skip_freq
+                # NOTE: this might come back again, make the heap even more dirtier
+                # heap.push(max_pair, skip_freq)
                 bi_ixs[max_pair] = skipped_nodes
+
         return vocab
 
     @classmethod
