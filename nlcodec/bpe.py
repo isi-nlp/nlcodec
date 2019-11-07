@@ -189,10 +189,10 @@ class BPELearn:
             max_pair, pair_freq = heap.pop()
             while max_pair in heap_dirty:  # clean all max [airs until a clean value
                 freq_update = heap_dirty.pop(max_pair)
-                assert freq_update <= 0   # only decrements are valid. increments make this wrong
+                assert freq_update < 0   # only decrements are valid. increments make this wrong
                 corr_freq = pair_freq + freq_update  # correct value
                 assert corr_freq >= 0, f'{max_pair}:{pair_freq}, Δ={freq_update} = {corr_freq}'
-                if corr_freq > 0:
+                if corr_freq > 0:       # exclude zero count
                     heap.push(max_pair, corr_freq)
                 max_pair, pair_freq = heap.pop()
 
