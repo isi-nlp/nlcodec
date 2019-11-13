@@ -10,12 +10,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import List, TextIO, Dict, Tuple, Union, Iterator, Optional
-
+import multiprocessing as mp
 from tqdm import tqdm
-
 from nlcodec import __version__, log
 from nlcodec.dstruct import TrNode
 
+N_CPUS = max(1, mp.cpu_count() - 1)
 WORD_MIN_FREQ = 2
 CHAR_MIN_FREQ = 20
 
@@ -193,6 +193,16 @@ class EncoderScheme:
     def decode(self, seq: List[int]) -> str:
         pieces = [self.idx_to_str[idx] for idx in seq]
         return self.decode_str(pieces)
+
+    def encode_parallel(self, seqs: Iterator[str], n_cpus=N_CPUS) -> Iterator[List[int]]:
+        return self.parallel_map(self.encode, seqs, n_cpus=n_cpus)
+
+    @classmethod
+    def parallel_map(cls, mapper, collection, n_cpus = N_CPUS, name=''):
+        assert n_cpus > 1, f'at least 2 CPUs needed'
+        log.info(f"Going to use {n_cpus} parallel processes {name }")
+        with mp.Pool(processes=n_cpus) as pool:
+            yield from pool.map(mapper, collection)
 
     @classmethod
     @abc.abstractmethod
