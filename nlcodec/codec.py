@@ -198,11 +198,11 @@ class EncoderScheme:
         return self.parallel_map(self.encode, seqs, n_cpus=n_cpus)
 
     @classmethod
-    def parallel_map(cls, mapper, collection, n_cpus = N_CPUS, name=''):
-        assert n_cpus > 1, f'at least 2 CPUs needed'
+    def parallel_map(cls, mapper, collection, n_cpus = N_CPUS, name='', chunksize=1000):
+        assert n_cpus > 1, f'at least 2 CPUs needed. chunksize={chunksize}'
         log.info(f"Going to use {n_cpus} parallel processes {name }")
         with mp.Pool(processes=n_cpus) as pool:
-            yield from pool.map(mapper, collection)
+            yield from pool.imap(mapper, collection, chunksize=chunksize)
 
     @classmethod
     @abc.abstractmethod
