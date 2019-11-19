@@ -14,8 +14,11 @@ import multiprocessing as mp
 from tqdm import tqdm
 from nlcodec import __version__, log
 from nlcodec.dstruct import TrNode
+import os
 
 N_CPUS = max(1, mp.cpu_count() - 1)
+N_CPUS = int(os.environ.get('NLCODEC_THREADS', str(N_CPUS)))
+assert N_CPUS >= 1
 WORD_MIN_FREQ = 2
 CHAR_MIN_FREQ = 20
 
