@@ -6,7 +6,7 @@
 import abc
 import collections as coll
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import datetime
 from pathlib import Path
 from typing import List, TextIO, Dict, Tuple, Union, Iterator, Optional
@@ -90,6 +90,13 @@ class Type:  # Type as in word type vs token
             assert all(k < idx and k < len(vocab) for k in kids)
             kids = [vocab[k] for k in kids]
         return Type(name, level=level, idx=idx, freq=freq, kids=kids)
+
+    def copy(self, **kwargs):
+        assert kwargs
+        # class is frozen, to update a field, make a copy and set new value
+        args = {f.name: kwargs.pop(f.name, getattr(self, f.name)) for f in fields(self)}
+        assert not kwargs, f'{kwargs} are unknown'
+        return Type(**args)
 
     @classmethod
     def write_out(cls, table: List['Type'], out: Union[Path, str, TextIO]):

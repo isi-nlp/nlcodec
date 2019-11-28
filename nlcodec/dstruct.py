@@ -23,7 +23,7 @@ class LnNode:  # doubly linked list node data structure; used for learning BPE
     def __hash__(self):
         return id(self)  # quick and dirty hash; not sure how this mess if we use multiprocessing
 
-    def delete(self):
+    def delete(self, unlink=True):
         """
         deletes this node from the list
         :return:
@@ -33,6 +33,8 @@ class LnNode:  # doubly linked list node data structure; used for learning BPE
             x.right = y
         if y:  # left links  : x ← self ← y  => x ← y
             y.left = x
+        if unlink:
+            self.left = self.right = None
 
     @classmethod
     def from_seq(cls, string: Union[str, List[int]], freq=1) -> List['LnNode']:

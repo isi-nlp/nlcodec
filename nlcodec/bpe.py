@@ -145,6 +145,7 @@ class BPELearn:
         Raises exception on invalid index
         :return:
         """
+        # This is code doesnt work with fast but new dirty heap updates
         max_code = max(self.uni)
         max_idx = max(t.idx for t in self.vocab)
         if not (max_code < self.vocab_size and max_code <= max_idx):
@@ -217,29 +218,39 @@ class BPELearn:
             # unigram counts drop ; since some of their bigrams are removed
             uni[a] -= pair_freq
             uni[b] -= pair_freq
-            # however; the counts shouldn't go negative
-            assert uni[a] >= 0
-            assert uni[b] >= 0
-            skipped_nodes = set()
             heap_deltas = coll.defaultdict(int)
             update_nodes = bi_ixs.pop(max_pair)  # also removed from bi_ixs
             for node in update_nodes:
-                a_node, b_node = node, node.right
+                # -- x a b y --
+                x_node, a_node, b_node = node.left, node, node.right
+                if not x_node and not b_node:  # lonely node, it was deleted; so skip
+                    # this happens in the cases like "x a a a a c"
+                    uni[a] += node.freq
+                    uni[b] += node.freq
+                    uni[new_type.idx] -= node.freq
+                    continue
+
+                y_node = b_node.right
+                if a_node.val == new_type.idx or b_node.val == new_type.idx:
+                    # case: a a a => a z | z a   => we have to skip one
+                    uni[a] += node.freq
+                    uni[b] += node.freq
+                    uni[new_type.idx] -= node.freq
+                    continue
                 dirty = a_node.val != a or b_node.val != b  # check that the linked list is proper
                 if dirty:
-                    self.validate_index()
+                    log.warning(f'Expected {a, b} but found {a_node.val, b_node.val}'
+                                f'\n {a_node, b_node}'
+                                f'\n--{vocab[a].signature()} =='
+                                f' {vocab[a_node.val].signature() if a_node.val != a else "OK"}'
+                                f'\n--{vocab[b].signature()} =='
+                                f' {vocab[b_node.val].signature() if b_node.val != b else "OK"}')
                     log.warning(f"a={a}, b={b} || a_node={a_node}, b_node={b_node}")
                 assert not dirty
                 assert a_node.freq == b_node.freq
-                x_node, y_node = a_node.left, b_node.right
-                # three repeated nodes are trouble. so skip them
-                if (x_node and x_node.val == new_type_idx) or (y_node and y_node.val == new_type_idx):
-                    # this is a problematic case --> skip the update
-                    skipped_nodes.add(node)
-                    continue
 
                 # update : x a b y => x R y
-                b_node.delete()  # delete() takes care of linking a → y and a ← y
+                b_node.delete(unlink=True)  # delete() takes care of linking a → y and a ← y
                 new_node = a_node  # reuse a node as new_node/R
                 new_node.val = new_type_idx  # reuse a as new_node/R
                 # Note: the above edits to a and b nodes do-not/should-not change __hash__
@@ -261,6 +272,10 @@ class BPELearn:
                     heap_deltas[(new_type_idx, y_node.val)] += b_node.freq
                     bi_ixs[(new_type_idx, y_node.val)].add(new_node)
 
+            # however; the counts shouldn't go negative
+            assert uni[a] >= 0
+            assert uni[b] >= 0
+
             for pair, delta in heap_deltas.items():
                 if delta > 0:  # these are new insertions, and they can go directly to heap
                     assert new_type_idx in pair
@@ -269,15 +284,6 @@ class BPELearn:
                     assert new_type_idx not in pair
                     heap_dirty[pair] += delta
 
-            if skipped_nodes:
-                skip_freq = sum(n.freq for n in skipped_nodes)
-                log.warning(f"Skipped: {max_pair} → {new_type_idx} replacement {skip_freq} times")
-                uni[a] += skip_freq
-                uni[b] += skip_freq
-                uni[new_type_idx] -= skip_freq
-                # NOTE: this might come back again, make the heap even more dirtier
-                # heap.push(max_pair, skip_freq)
-                bi_ixs[max_pair] = skipped_nodes
 
         return vocab
 
@@ -318,7 +324,6 @@ class BPELearn:
         if init_list:
             log.info(f'Adding {len(init_list)} types to the initial vocab')
             assert not any(' ' in w for w in init_list), 'spaces not allowed in init_list words'
-            [cls.prepare_word(w) for w in init_list]
             vocab += [Type(cls.prepare_word(w), level=Level.user, idx=idx, freq=0)
                       for idx, w in enumerate(init_list, start=len(vocab))]
 
@@ -369,13 +374,20 @@ class BPELearn:
         if char_min_freq > 1:
             includes = {ch: freq for ch, freq in alphabet.items() if freq >= char_min_freq}
             excludes = {ch: ct for ch, ct in alphabet.items() if ch not in includes}
-            log.info(f'unked chars count:{sum(excludes.values())} from types:{excludes}')
+            unk_count = sum(excludes.values())
+            log.info(f'unked chars count:{unk_count} from types:{excludes}')
             alphabet = includes
+            alphabet[Reseved.UNK_TOK[0]] = unk_count
         else:
             log.info("Character coverage: full")
 
         init_vocab = Reseved.with_reserved_types()  # initial vocab with reserved toks
-        [alphabet.pop(v.name, None) for v in init_vocab if v.name in alphabet]  # remove reserved ch
+        for idx, t in enumerate(init_vocab):
+            if t.name in alphabet:
+                freq = alphabet.pop(t.name)
+                log.warning(f"Update frequency for reserved type {t} with {freq}")
+                init_vocab[idx] = t.copy(freq=freq)
+
         alphabet = sorted(alphabet.items(), key=lambda x: x[1], reverse=True)  # high freq on top
 
         init_vocab += [Type(name, level=Level.char, idx=idx, freq=freq)
