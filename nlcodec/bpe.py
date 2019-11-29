@@ -49,9 +49,7 @@ class BPELearn:
     space_tok = Reseved.SPACE_TOK[0]
     unk_tok = Reseved.UNK_TOK[0]
 
-    def __init__(self, seqs: Iterator[Union[Seq, Tuple[Seq, int]]], vocab: List[Type],
-                 troubles='replace'):
-        assert troubles in ['ignore', 'replace']
+    def __init__(self, seqs: Iterator[Union[Seq, Tuple[Seq, int]]], vocab: List[Type]):
         # Check one to one map: type.name <-> idx
         assert len(set(v.idx for v in vocab)) == len(set(v.name for v in vocab))
         for i, v in enumerate(vocab):
@@ -63,10 +61,10 @@ class BPELearn:
         # Bigram to sequence references
         self.bi_ixs: Dict[Bigram, Set[LnNode]] = coll.defaultdict(set)
 
-        self.create_index(seqs, troubles)
+        self.create_index(seqs)
         self.validate_index()
 
-    def create_index(self, seqs, troubles):
+    def create_index(self, seqs):
         log.info("Going to build corpus stats index; This might take lot of time and memory")
         n_seqs, n_ignored, n_replaced, bar_msg = 0, 0, 0, ''
         with tqdm(enumerate(seqs), unit='seqs', dynamic_ncols=True, mininterval=1) as data_bar:
@@ -83,16 +81,6 @@ class BPELearn:
                     log.warning(f"Skipping empty sequence at idx {idx + 1}")
                     continue
 
-                if self._is_troublesome_seq(seq):
-                    if troubles == 'ignore':
-                        n_ignored += 1
-                        continue
-                    elif troubles == 'replace':
-                        seq = self._replace_trouble(seq)
-                        n_replaced += 1
-                    else:
-                        raise Exception('This should not be happening!')
-
                 nodes = LnNode.from_seq(seq, freq=freq)
                 assert len(seq) == len(nodes)
 
@@ -103,37 +91,9 @@ class BPELearn:
                     self.bi_ixs[bigm].add(nodes[i])  # bigm found at node i
                     self.uni[seq[i]] += freq
                 self.uni[seq[-1]] += freq  # the last unigram count; not covered in the above loop
-                err_msg = f'Replaced={n_replaced}' if troubles == 'replace' \
-                    else f'Ignored={n_ignored}'
-                bar_msg = f'{err_msg}; MaxRSS={max_RSS()[1]}'
+                bar_msg = f'MaxRSS={max_RSS()[1]}'
                 data_bar.set_postfix_str(bar_msg, refresh=False)
         log.info(f"Created index; {bar_msg}")
-
-    def _is_troublesome_seq(self, seq) -> bool:
-        for i in range(2, len(seq)):
-            """
-            repetitions are bad; for example see below
-            case1: seq= x 1 1 y  ; uni={x:1, 1:2, y:1}; bi= {(x,1):1, (1,1)=1, (1, y)=1}
-            case2:, seq= x 1 1 1 y; uni={x:1, 1:3, y:1}; bi= {(x,1):1, (1,1)=2, (1, y)=1}
-            case3, seq= x 1 1 1 1 y; uni={x:1, 1:4, y:1}; bi= {(x,1):1, (1,1)=3, (1, y)=1}
-            => case1 is okay;  uni[1] -= bi[(1,1)] two times as usual
-            => case2 is bad;   uni[1] -= bi[(1,1)] two times as is a mess up
-            => case3 or longer is really a mess up; total mess up of replacements
-            """
-            # three or more consecutive same code points --> trouble!
-            if seq[i] == seq[i - 1] == seq[i - 2]:
-                return True
-        return False
-
-    def _replace_trouble(self, seq: List) -> List:
-        # edit sequences like a111b --> a11b
-        # ie. replace sequence of three or more repeated bytes into at most 2
-        buffer = [1] * len(seq)
-        for i in range(1, len(seq)):
-            if seq[i] == seq[i - 1]:
-                buffer[i] = buffer[i - 1] + 1
-        res = [x for x, flag in zip(seq, buffer) if flag <= 2]
-        return res
 
     @property
     def vocab_size(self) -> int:
@@ -183,17 +143,17 @@ class BPELearn:
         """
         uni, bi_ixs = self.uni, self.bi_ixs
         heap = MaxHeap(self.bi)
-        heap_dirty = coll.defaultdict(int)  #subtractions aren't updated in max-heap, they are here
+        heap_dirty = coll.defaultdict(int)  # subtractions aren't updated in max-heap, they are here
         vocab = self.vocab
         for i in range(n_merges):
             # Using MaxHeap for faster lookup of max. But heap gets a bit dirty, so a bit of cleanup
             max_pair, pair_freq = heap.pop()
             while max_pair in heap_dirty:  # clean all max [airs until a clean value
                 freq_update = heap_dirty.pop(max_pair)
-                assert freq_update < 0   # only decrements are valid. increments make this wrong
+                assert freq_update < 0  # only decrements are valid. increments make this wrong
                 corr_freq = pair_freq + freq_update  # correct value
                 assert corr_freq >= 0, f'{max_pair}:{pair_freq}, Δ={freq_update} = {corr_freq}'
-                if corr_freq > 0:       # exclude zero count
+                if corr_freq > 0:  # exclude zero count
                     heap.push(max_pair, corr_freq)
                 max_pair, pair_freq = heap.pop()
 
@@ -222,51 +182,49 @@ class BPELearn:
             update_nodes = bi_ixs.pop(max_pair)  # also removed from bi_ixs
             for node in update_nodes:
                 # -- x a b y --
-                x_node, a_node, b_node = node.left, node, node.right
-                if not x_node and not b_node:  # lonely node, it was deleted; so skip
-                    # this happens in the cases like "x a a a a c"
+                x_node, b_node = node.left, node.right
+                if node.is_unlinked or (a == b and new_type.idx in (node.val, b_node.val)):
+                    # this happens in the cases like "x a a a a y"
                     uni[a] += node.freq
                     uni[b] += node.freq
                     uni[new_type.idx] -= node.freq
                     continue
 
                 y_node = b_node.right
-                if a_node.val == new_type.idx or b_node.val == new_type.idx:
-                    # case: a a a => a z | z a   => we have to skip one
-                    uni[a] += node.freq
-                    uni[b] += node.freq
-                    uni[new_type.idx] -= node.freq
-                    continue
-                dirty = a_node.val != a or b_node.val != b  # check that the linked list is proper
+                dirty = node.val != a or b_node.val != b  # check that the linked list is proper
                 if dirty:
-                    log.warning(f'Expected {a, b} but found {a_node.val, b_node.val}'
-                                f'\n {a_node, b_node}'
+                    log.warning(f'Expected {a, b} but found {node.val, b_node.val}'
+                                f'\n {node, b_node}'
                                 f'\n--{vocab[a].signature()} =='
-                                f' {vocab[a_node.val].signature() if a_node.val != a else "OK"}'
+                                f' {vocab[node.val].signature() if node.val != a else "OK"}'
                                 f'\n--{vocab[b].signature()} =='
                                 f' {vocab[b_node.val].signature() if b_node.val != b else "OK"}')
-                    log.warning(f"a={a}, b={b} || a_node={a_node}, b_node={b_node}")
+                    log.warning(f"a={a}, b={b} || a_node={node}, b_node={b_node}")
                 assert not dirty
-                assert a_node.freq == b_node.freq
+                assert node.freq == b_node.freq
 
                 # update : x a b y => x R y
                 b_node.delete(unlink=True)  # delete() takes care of linking a → y and a ← y
-                new_node = a_node  # reuse a node as new_node/R
+                new_node = node  # reuse a node as new_node/R
                 new_node.val = new_type_idx  # reuse a as new_node/R
                 # Note: the above edits to a and b nodes do-not/should-not change __hash__
 
-                if x_node and bi_ixs.get((x_node.val, a)):
+                if x_node:
                     # remove (x_node_val, a) from bi and bi_ixs
                     heap_deltas[(x_node.val, a)] -= x_node.freq
-                    bi_ixs[(x_node.val, a)].remove(x_node)
+                    if bi_ixs.get((x_node.val, a)):
+                        # not sure why 'if' needed here;
+                        bi_ixs[(x_node.val, a)].remove(x_node)
 
                     # add (x_node_val, R) to bi and bi_ixs
                     heap_deltas[(x_node.val, new_type_idx)] += x_node.freq
                     bi_ixs[(x_node.val, new_type_idx)].add(x_node)
-                if y_node and bi_ixs.get((b, y_node.val)):
+                if y_node:
                     # remove (b, y_node.val) from bi and bi_ixs
                     heap_deltas[(b, y_node.val)] -= b_node.freq
-                    bi_ixs[(b, y_node.val)].remove(b_node)
+                    if bi_ixs.get((b, y_node.val)):
+                        # not sure why 'if' needed here;
+                        bi_ixs[(b, y_node.val)].remove(b_node)
 
                     # add (R, y_node.val) to bi and bi_ixs
                     heap_deltas[(new_type_idx, y_node.val)] += b_node.freq
@@ -283,7 +241,6 @@ class BPELearn:
                 elif delta < 0:  # one of those subtractions, which cant be directly updated
                     assert new_type_idx not in pair
                     heap_dirty[pair] += delta
-
 
         return vocab
 

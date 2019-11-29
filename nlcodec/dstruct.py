@@ -14,6 +14,7 @@ class LnNode:  # doubly linked list node data structure; used for learning BPE
     left: Optional['LnNode'] = None
     right: Optional['LnNode'] = None
     freq: int = 1
+    data: Any = None # any extra payload
 
     def __eq__(self, other):
         # caution: these calls are recursive on left and right; cycles would cause infinite loop
@@ -36,15 +37,19 @@ class LnNode:  # doubly linked list node data structure; used for learning BPE
         if unlink:
             self.left = self.right = None
 
+    @property
+    def is_unlinked(self):
+        return self.right is None and self.left is None
+
     @classmethod
-    def from_seq(cls, string: Union[str, List[int]], freq=1) -> List['LnNode']:
+    def from_seq(cls, string: Union[str, List[int]], freq=1, data=None) -> List['LnNode']:
         """
         makes a doubly linked list from string
         :param string: input string (of integers recommended)
         :param freq: frequency of string in corpus (for scaling
         :return: List of Nodes, doubly linked to lefts and rights
         """
-        nodes = [cls(ch, freq=freq) for ch in string]
+        nodes = [cls(ch, freq=freq, data=data) for ch in string]
         for i, n in enumerate(nodes):
             if i > 0:
                 n.left = nodes[i - 1]
