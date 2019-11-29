@@ -43,12 +43,13 @@ class QualityEstimator:
         assert np.sum(distr < 0) == 0  # no negatives
 
     @classmethod
-    def earth_mov_dist(cls, before: NDArray, after: NDArray, moving_cost=1):
-        cls.validate_distribution(before)
-        cls.validate_distribution(after)
+    def earth_mov_dist(cls, before: NDArray, after: NDArray, moving_cost=0.5, validate=True):
+        if validate:
+            cls.validate_distribution(before)
+            cls.validate_distribution(after)
         assert len(before) == len(after)
         assert moving_cost > 0
-        return np.sum(np.abs(after - before) * moving_cost)
+        return  moving_cost * np.sum(np.abs(after - before))
 
     @classmethod
     def kl_div(self, base, distr):
