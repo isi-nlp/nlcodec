@@ -52,6 +52,13 @@ class QualityEstimator:
         return  moving_cost * np.sum(np.abs(after - before))
 
     @classmethod
+    def EMD_simple(cls, stats: NDArray, moving_cost=1):
+        distr = stats / np.sum(stats)
+        k = len(stats)
+        assert moving_cost > 0
+        return 0.5 * moving_cost * np.sum(np.abs(distr - 1/k))
+
+    @classmethod
     def kl_div(self, base, distr):
         """
         Dkl (P || Q) should be read such that P is base from which Q's  divergence is computed
@@ -95,20 +102,13 @@ class QualityEstimator:
         unk_count = stats[self.codec.unk_idx]
 
         # exclude the reserved types which dont surface in prediction
-        excludes = [typ for typ in self.codec.table if typ.is_reserved and stats[typ.idx] == 0]
-        n_types -= len(excludes)  # exclude reserved
-        for typ in reversed(excludes):  # delete from right
-            log.info(f'Remove type from balance check: {typ}')
-            del stats[typ.idx]
-
-
+        #excludes = [typ for typ in self.codec.table if typ.is_reserved and stats[typ.idx] == 0]
+        #n_types -= len(excludes)  # exclude reserved
+        #for typ in reversed(excludes):  # delete from right
+        #    log.info(f'Remove type from balance check: {typ}')
+        #    del stats[typ.idx]
         n_toks = sum(stats)
-        uniform = np.full(shape=(n_types), fill_value=(1 / n_types), dtype=np.float)
-        distr = np.array(stats) / n_toks
-        emd = self.earth_mov_dist(before=distr, after=uniform)
-        kl_div = self.js_div(base=uniform, distr=distr)
-        imb_measure = (emd, kl_div)
-
+        imb_measure = self.EMD_simple(stats=stats)
         return CodecQuality(n_types=n_types, imbalance=imb_measure, n_tokens=n_toks,
                             mean_seq_len=mean_len, unk_count=unk_count)
 
