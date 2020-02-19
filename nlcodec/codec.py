@@ -223,7 +223,7 @@ class EncoderScheme:
         raise NotImplementedError()
 
     @classmethod
-    def get_init_vocab(cls, term_freqs, coverage, line_count=None, min_freq=WORD_MIN_FREQ,
+    def get_init_vocab(cls, term_freqs, coverage: float=0, line_count=None, min_freq=WORD_MIN_FREQ,
                        vocab_size=-1):
         vocab = Reseved.with_reserved_types()
         res_stats = {r_type.name: term_freqs.pop(r_type.name) for r_type in vocab if
@@ -232,9 +232,10 @@ class EncoderScheme:
             log.warning(f"Found reserved types in corpus: {res_stats}")
         # Order of trimming techs: 1. coverage, 2. min freqs, 3. size cut off
         unk_count = 0
-        if coverage and 0 < coverage <= 1:
+        if coverage:
+            assert 0 < coverage <= 1
             term_freqs, coverage_unk_count = filter_types_coverage(term_freqs, coverage=coverage)
-            unk_count += coverage
+            unk_count += coverage_unk_count
         term_freqs = sorted(term_freqs.items(), key=lambda x: x[1], reverse=True)
         if min_freq and min_freq > 1:
             log.info(f"Excluding terms with freq < {min_freq}; |freq >= 1|: {len(term_freqs):,}")
@@ -293,7 +294,7 @@ class WordScheme(EncoderScheme):
 
     @classmethod
     def learn(cls, data: Iterator[str], vocab_size: int = 0, min_freq: int = WORD_MIN_FREQ,
-              coverage: Optional[float] = None, **kwargs) -> List[Type]:
+              coverage: float = 0, **kwargs) -> List[Type]:
         assert not kwargs
         log.info(f"Building {cls} vocab.. This might take some time")
         stats, line_count = cls.term_frequencies(data=data)
@@ -397,7 +398,7 @@ class BPEScheme(CharScheme):
 
         def init_vocab_factory(char_types):
             return CharScheme.get_init_vocab(char_types, line_count=line_count,
-                                             coverage=CHAR_COVERAGE, min_freq=1)
+                                             coverage=coverage, min_freq=1)
 
         from .bpe import BPELearn
         vocab = BPELearn.learn_subwords(term_freqs=term_freqs, vocab_size=vocab_size,

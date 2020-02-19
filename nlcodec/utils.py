@@ -27,13 +27,14 @@ def filter_types_coverage(types: Dict[str, int], coverage=1.0) -> Tuple[Dict[str
     tot = sum(types.values())
     includes = {}
     cum = 0
-    for t, f in types.items():
+    types  = sorted(types.items(), key=lambda x: x[1], reverse=True)
+    for t, f in types:
         cum += f / tot
         includes[t] = f
         if cum >= coverage:
             break
     log.info(f'Coverage={cum:g}; requested={coverage:g}')
-    excludes = {ch: ct for ch, ct in types.items() if ch not in includes}
+    excludes = {ch: ct for ch, ct in types if ch not in includes}
     unk_count = sum(excludes.values())
-    log.info(f'UNKed total toks:{unk_count} types={len(excludes)} from types:{excludes}')
+    log.warning(f'UNKed total toks:{unk_count} types={len(excludes)} from types:{excludes}')
     return includes, unk_count
