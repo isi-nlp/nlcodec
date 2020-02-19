@@ -7,8 +7,8 @@ from typing import Dict, Any, Iterator, TextIO
 import sys
 from pathlib import Path
 
-from nlcodec import log, learn_vocab, load_scheme, encode, decode
-from nlcodec.codec import WORD_MIN_FREQ, CHAR_MIN_FREQ
+from nlcodec import learn_vocab, load_scheme, encode, decode
+from nlcodec import DEF_WORD_MIN_FREQ, DEF_CHAR_MIN_FREQ, DEF_CHAR_COVERAGE
 
 
 def write_lines(lines: Iterator[str], out: TextIO, line_break='\n'):
@@ -54,9 +54,13 @@ def parse_args() -> Dict[str, Any]:
     learn_args.add_argument('-mf', '--min_freq', default=None, type=int,
                             help='Minimum frequency of types for considering inclusion in vocabulary. '
                             'Types fewer than this frequency will be ignored. '
-                            f'For --level=word, freq is type freq and default is {WORD_MIN_FREQ}.'
-                            f'for --level=char or --level=bpe, characters fewer than this value'
-                            f' will be excluded. default={CHAR_MIN_FREQ}')
+                            f'For --level=word or --level=bpe, freq is type freq and '
+                            f' default is {DEF_WORD_MIN_FREQ}.'
+                            f'for --level=char, characters fewer than this value'
+                            f' will be excluded. default={DEF_CHAR_MIN_FREQ}')
+
+    learn_args.add_argument('-cv', '--char_coverage', default=DEF_CHAR_COVERAGE, type=float,
+                            help='Character coverage for --level=char or --level=bpe')
 
     args = vars(p.parse_args())
     return args

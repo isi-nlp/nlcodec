@@ -14,13 +14,16 @@ import multiprocessing as mp
 from tqdm import tqdm
 from nlcodec import __version__, log
 from nlcodec.dstruct import TrNode
+from nlcodec.utils import filter_types_coverage
 import os
 
 N_CPUS = max(1, mp.cpu_count() - 1)
 N_CPUS = int(os.environ.get('NLCODEC_THREADS', str(N_CPUS)))
+
 assert N_CPUS >= 1
-WORD_MIN_FREQ = 2
-CHAR_MIN_FREQ = 20
+from nlcodec import DEF_WORD_MIN_FREQ as WORD_MIN_FREQ
+from nlcodec import DEF_CHAR_MIN_FREQ as CHAR_MIN_FREQ
+from nlcodec import DEF_CHAR_COVERAGE as CHAR_COVERAGE
 
 
 class Reseved:
@@ -208,9 +211,9 @@ class EncoderScheme:
         return self.parallel_map(self.encode, seqs, n_cpus=n_cpus)
 
     @classmethod
-    def parallel_map(cls, mapper, collection, n_cpus = N_CPUS, name='', chunksize=1000):
+    def parallel_map(cls, mapper, collection, n_cpus=N_CPUS, name='', chunksize=1000):
         assert n_cpus > 1, f'at least 2 CPUs needed. chunksize={chunksize}'
-        log.info(f"Going to use {n_cpus} parallel processes {name }")
+        log.info(f"Going to use {n_cpus} parallel processes {name}")
         with mp.Pool(processes=n_cpus) as pool:
             yield from pool.imap(mapper, collection, chunksize=chunksize)
 
@@ -218,7 +221,6 @@ class EncoderScheme:
     @abc.abstractmethod
     def learn(cls, data: Iterator[str], **kwargs) -> List[Type]:
         raise NotImplementedError()
-
 
 
 class WordScheme(EncoderScheme):
@@ -238,7 +240,7 @@ class WordScheme(EncoderScheme):
         return "word"
 
     @classmethod
-    def term_frequencies(cls, data:Iterator[str]) -> Dict[str, int]:
+    def term_frequencies(cls, data: Iterator[str]) -> Dict[str, int]:
         stats = coll.Counter()
         for line in tqdm(data, mininterval=1):
             stats.update(cls.encode_str(line.strip()))
@@ -246,26 +248,30 @@ class WordScheme(EncoderScheme):
         return stats
 
     @classmethod
-    def learn(cls, data: Iterator[str], vocab_size: int = 0, min_freq: int = 1, **kwargs) -> List[
-        Type]:
+    def learn(cls, data: Iterator[str], vocab_size: int = 0, min_freq: int = WORD_MIN_FREQ,
+              coverage: Optional[float] = None, **kwargs) -> List[Type]:
+
         assert not kwargs
         log.info(f"Building {cls} vocab.. This might take some time")
         stats = cls.term_frequencies(data=data)
-
         vocab = Reseved.with_reserved_types()
         for r_type in vocab:
             if r_type.name in stats:
-                log.warning(f"Found reserved type {r_type.name} with freq {stats[r_type.name]} ")
+                log.warning(f"Found reserved type {r_type.name} with freq {stats[r_type.name]}")
                 del stats[r_type.name]
+
+        # Order of trimming techs: 1. coverage, 2. min freqs, 3. size cut off
+        if coverage and 0 < coverage <= 1:
+            stats, unk_count = filter_types_coverage(stats, coverage=coverage)
 
         stats = sorted(stats.items(), key=lambda x: x[1], reverse=True)
         if min_freq and min_freq > 1:
-            log.info(f"Excluding terms with frequency < {min_freq};  |freq >= 1|: {len(stats):,}")
+            log.info(f"Excluding terms with frequency < {min_freq}; |freq >= 1|: {len(stats):,}")
             stats = [(t, f) for t, f in stats if f >= min_freq]
             log.info(f"|freq >= {min_freq}| : {len(stats):,}")
 
         if vocab_size > 0 and len(vocab) + len(stats) > vocab_size:
-            log.info(f"truncating vocab at size={vocab_size}")
+            log.info(f"Truncating vocab at size={vocab_size}")
             stats = stats[:vocab_size - len(vocab)]
         vocab += [Type(name=name, idx=idx, freq=freq, level=cls.level)
                   for idx, (name, freq) in enumerate(stats, start=len(vocab))]
@@ -290,7 +296,11 @@ class CharScheme(WordScheme):
     def decode_str(cls, seq: List[str]) -> str:
         return ''.join(seq).replace(cls.space_char, ' ')
 
-    # learn() is same as parent class: WordScheme
+    @classmethod
+    def learn(cls, data: Iterator[str], vocab_size: int = 0, min_freq: int = CHAR_MIN_FREQ,
+              coverage: float = CHAR_COVERAGE, **kwargs) -> List[Type]:
+        # learn() is same as parent class: WordScheme
+        return super().learn(data, vocab_size, min_freq=min_freq, coverage=coverage, **kwargs)
 
 
 class BPEScheme(CharScheme):
@@ -358,13 +368,15 @@ class BPEScheme(CharScheme):
         return ''.join(seq).replace(self.space_char, ' ').strip()
 
     @classmethod
-    def learn(cls, data: Iterator[str], vocab_size: int = 0, min_freq=1, **kwargs) -> List[Type]:
+    def learn(cls, data: Iterator[str], vocab_size: int = 0, min_freq=WORD_MIN_FREQ,
+              coverage=CHAR_COVERAGE, **kwargs) -> List[Type]:
         assert vocab_size > 0
         assert not kwargs
         term_freqs = WordScheme.term_frequencies(data)
         from .bpe import BPELearn
         vocab = BPELearn.learn_subwords(term_freqs=term_freqs, vocab_size=vocab_size,
-                                        char_min_freq=min_freq)
+                                        word_min_freq=min_freq,
+                                        char_coverage=coverage)
         return vocab
 
 
@@ -377,7 +389,7 @@ REGISTRY = {
 }
 
 
-def learn_vocab(inp, level, model, vocab_size, min_freq=-1):
+def learn_vocab(inp, level, model, vocab_size, min_freq=1, char_coverage=CHAR_COVERAGE):
     if not min_freq or min_freq < 1:
         min_freq = WORD_MIN_FREQ if level == 'word' else CHAR_MIN_FREQ
         log.info(f"level={level} => default min_freq={min_freq}")
@@ -386,7 +398,8 @@ def learn_vocab(inp, level, model, vocab_size, min_freq=-1):
     log.info(f"Learn Vocab for level={level} and store at {model}")
     log.info(f"data ={inp}")
     Scheme = REGISTRY[level]
-    table = Scheme.learn(inp, vocab_size=vocab_size, min_freq=min_freq)
+    args = {} if level == 'word' else dict(coverage=char_coverage) # no char_coverage for word
+    table = Scheme.learn(inp, vocab_size=vocab_size, min_freq=min_freq, **args)
     Type.write_out(table=table, out=model)
 
 
