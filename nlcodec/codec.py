@@ -222,6 +222,48 @@ class EncoderScheme:
     def learn(cls, data: Iterator[str], **kwargs) -> List[Type]:
         raise NotImplementedError()
 
+    @classmethod
+    def get_init_vocab(cls, term_freqs, coverage, line_count=None, min_freq=WORD_MIN_FREQ,
+                       vocab_size=-1):
+        vocab = Reseved.with_reserved_types()
+        res_stats = {r_type.name: term_freqs.pop(r_type.name) for r_type in vocab if
+                     r_type.name in term_freqs}
+        if res_stats:
+            log.warning(f"Found reserved types in corpus: {res_stats}")
+        # Order of trimming techs: 1. coverage, 2. min freqs, 3. size cut off
+        unk_count = 0
+        if coverage and 0 < coverage <= 1:
+            term_freqs, coverage_unk_count = filter_types_coverage(term_freqs, coverage=coverage)
+            unk_count += coverage
+        term_freqs = sorted(term_freqs.items(), key=lambda x: x[1], reverse=True)
+        if min_freq and min_freq > 1:
+            log.info(f"Excluding terms with freq < {min_freq}; |freq >= 1|: {len(term_freqs):,}")
+            unk_count += sum(f for t, f in term_freqs if f < min_freq)
+            term_freqs = [(t, f) for t, f in term_freqs if f >= min_freq]
+            log.info(f"|freq >= {min_freq}| : {len(term_freqs):,}")
+
+        if vocab_size > 0 and len(vocab) + len(term_freqs) > vocab_size:
+            log.info(f"Truncating vocab at size={vocab_size}")
+            unk_count += sum(f for t, f in term_freqs[vocab_size - len(vocab):])
+            term_freqs = term_freqs[:vocab_size - len(vocab)]
+
+        # update reserved types with corpus freqs
+        for idx, t in enumerate(vocab):
+            freq = 0
+            if t.name in res_stats:
+                freq = res_stats.pop(t.name)
+            if idx == Reseved.UNK_IDX:
+                freq += unk_count
+            if idx in {Reseved.BOS_IDX, Reseved.EOS_IDX, Reseved.CLS_IDX} and line_count:
+                freq += line_count
+            if freq:
+                log.warning(f"Update frequency for reserved type {t} with {freq}")
+                vocab[idx] = t.copy(freq=freq)
+        vocab += [Type(name=name, idx=idx, freq=freq, level=cls.level)
+                  for idx, (name, freq) in enumerate(term_freqs, start=len(vocab))]
+        log.info(f"Total {cls} vocab size {len(vocab):,}")
+        return vocab
+
 
 class WordScheme(EncoderScheme):
     level = Level.word
@@ -240,43 +282,22 @@ class WordScheme(EncoderScheme):
         return "word"
 
     @classmethod
-    def term_frequencies(cls, data: Iterator[str]) -> Dict[str, int]:
+    def term_frequencies(cls, data: Iterator[str]) -> Tuple[Dict[str, int], int]:
         stats = coll.Counter()
+        line_count = 0
         for line in tqdm(data, mininterval=1):
             stats.update(cls.encode_str(line.strip()))
+            line_count += 1
         log.info(f"Found {len(stats):,} types and {sum(stats.values()):,} tokens")
-        return stats
+        return stats, line_count
 
     @classmethod
     def learn(cls, data: Iterator[str], vocab_size: int = 0, min_freq: int = WORD_MIN_FREQ,
               coverage: Optional[float] = None, **kwargs) -> List[Type]:
-
         assert not kwargs
         log.info(f"Building {cls} vocab.. This might take some time")
-        stats = cls.term_frequencies(data=data)
-        vocab = Reseved.with_reserved_types()
-        for r_type in vocab:
-            if r_type.name in stats:
-                log.warning(f"Found reserved type {r_type.name} with freq {stats[r_type.name]}")
-                del stats[r_type.name]
-
-        # Order of trimming techs: 1. coverage, 2. min freqs, 3. size cut off
-        if coverage and 0 < coverage <= 1:
-            stats, unk_count = filter_types_coverage(stats, coverage=coverage)
-
-        stats = sorted(stats.items(), key=lambda x: x[1], reverse=True)
-        if min_freq and min_freq > 1:
-            log.info(f"Excluding terms with frequency < {min_freq}; |freq >= 1|: {len(stats):,}")
-            stats = [(t, f) for t, f in stats if f >= min_freq]
-            log.info(f"|freq >= {min_freq}| : {len(stats):,}")
-
-        if vocab_size > 0 and len(vocab) + len(stats) > vocab_size:
-            log.info(f"Truncating vocab at size={vocab_size}")
-            stats = stats[:vocab_size - len(vocab)]
-        vocab += [Type(name=name, idx=idx, freq=freq, level=cls.level)
-                  for idx, (name, freq) in enumerate(stats, start=len(vocab))]
-        log.info(f"Total {cls} vocab size {len(vocab):,}")
-        return vocab
+        stats, line_count = cls.term_frequencies(data=data)
+        return cls.get_init_vocab(stats, coverage, line_count, min_freq, vocab_size)
 
 
 class CharScheme(WordScheme):
@@ -372,11 +393,15 @@ class BPEScheme(CharScheme):
               coverage=CHAR_COVERAGE, **kwargs) -> List[Type]:
         assert vocab_size > 0
         assert not kwargs
-        term_freqs = WordScheme.term_frequencies(data)
+        term_freqs, line_count = WordScheme.term_frequencies(data)
+
+        def init_vocab_factory(char_types):
+            return CharScheme.get_init_vocab(char_types, line_count=line_count,
+                                             coverage=CHAR_COVERAGE, min_freq=1)
+
         from .bpe import BPELearn
         vocab = BPELearn.learn_subwords(term_freqs=term_freqs, vocab_size=vocab_size,
-                                        word_min_freq=min_freq,
-                                        char_coverage=coverage)
+                                        init_vocab_factory=init_vocab_factory)
         return vocab
 
 
@@ -398,7 +423,7 @@ def learn_vocab(inp, level, model, vocab_size, min_freq=1, char_coverage=CHAR_CO
     log.info(f"Learn Vocab for level={level} and store at {model}")
     log.info(f"data ={inp}")
     Scheme = REGISTRY[level]
-    args = {} if level == 'word' else dict(coverage=char_coverage) # no char_coverage for word
+    args = {} if level == 'word' else dict(coverage=char_coverage)  # no char_coverage for word
     table = Scheme.learn(inp, vocab_size=vocab_size, min_freq=min_freq, **args)
     Type.write_out(table=table, out=model)
 

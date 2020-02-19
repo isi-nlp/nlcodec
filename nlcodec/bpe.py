@@ -298,50 +298,30 @@ class BPELearn:
     @classmethod
     def learn_subwords(cls, term_freqs: Dict[str, int], vocab_size: int,
                        min_co_evidence: int = DEF_MIN_CO_EV,
-                       word_min_freq: int=DEF_WORD_MIN_FREQ,
-                       char_coverage: float=DEF_CHAR_COVERAGE) -> List[Type]:
+                      init_vocab_factory=None) -> List[Type]:
         """
         :param term_freqs:
         :param vocab_size: final vocab size: reserved + chars + user_specified  + merges;
           special case, when `vocab_size=-1` the returned vocab will have just reserved + chars
         :param min_co_evidence: min co evidence for pair merges
-        :param char_coverage: percentage of characters to be covered by inital alphabet
+        :param char_coverage: percentage of characters to be covered by inital char_freqs
         :param word_min_freq: words below this frequency will be excluded for learning BPE
         :return: List of Type
         """
-        assert word_min_freq >= 1
-        assert not char_coverage or 0 < char_coverage <= 1
 
         log.info(f"Total types: {len(term_freqs)}")
-        term_freqs = {cls.prepare_word(word): freq for word, freq in term_freqs.items()
-                      if freq >= word_min_freq}
-        if word_min_freq > 1:
-            log.info(f"Total types after min_freq >= {word_min_freq}: {len(term_freqs)}")
+        term_freqs = {cls.prepare_word(word): freq for word, freq in term_freqs.items()}
 
-        alphabet = coll.defaultdict(int)
+        char_freqs = coll.defaultdict(int)
         for term, freq in term_freqs.items():
             for ch in term:
-                alphabet[ch] += freq
+                char_freqs[ch] += freq
             """TODO: test this behavior; similar to subword-nmt v0.2
             for ch in term[:-2]:  # skip the last two: ending and the whitespace marker
-                alphabet[ch] += freq
-            alphabet[term[-2:]] += freq  # ending + whitespace marker go together as a single byte
+                char_freqs[ch] += freq
+            char_freqs[term[-2:]] += freq  # ending + whitespace marker go together as a single byte
             """
-        alphabet, unk_count = filter_types_coverage(alphabet, coverage=char_coverage)
-        alphabet[Reseved.UNK_TOK[0]] = unk_count
-
-        init_vocab = Reseved.with_reserved_types()  # initial vocab with reserved toks
-        for idx, t in enumerate(init_vocab):
-            if t.name in alphabet:
-                freq = alphabet.pop(t.name)
-                log.warning(f"Update frequency for reserved type {t} with {freq}")
-                init_vocab[idx] = t.copy(freq=freq)
-
-        alphabet = sorted(alphabet.items(), key=lambda x: x[1], reverse=True)  # high freq on top
-
-        init_vocab += [Type(name, level=Level.char, idx=idx, freq=freq)
-                       for idx, (name, freq) in enumerate(alphabet, start=len(init_vocab))]
-
+        init_vocab = init_vocab_factory(char_freqs)  # create an initial vocabulary of chars
         if vocab_size == -1:
             log.warning(f'Since vocab_size={vocab_size}; not going to do any L1 merges')
             log.info(f'Found initial vocab size of {len(init_vocab)}')
