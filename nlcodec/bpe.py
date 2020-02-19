@@ -10,16 +10,15 @@ import sys
 import copy
 from tqdm import tqdm
 
-from nlcodec import log, LnNode, Type, Level, Reseved, MaxHeap
-
+from nlcodec import log
+from nlcodec.codec import Type, Level, Reseved
+from nlcodec.dstruct import LnNode, MaxHeap
+from nlcodec.utils import filter_types_coverage
 Codes = Dict[int, Tuple[int, ...]]
 Seq = List[int]
 Bigram = Tuple[int, int]
 
-DEF_MIN_CO_EV = 5
-DEF_CHAR_MIN_FREQ = 20  # minimum times a char should be seen to be included in l1 init vocab
-DEF_WORD_MIN_FREQ = 1  # minimum times a word should exist to be used for l1 vocab
-
+from nlcodec import DEF_CHAR_COVERAGE, DEF_WORD_MIN_FREQ, DEF_MIN_CO_EV
 
 def max_RSS(who=resource.RUSAGE_SELF) -> Tuple[int, str]:
     """Gets memory usage of current process, maximum so far.
@@ -299,19 +298,19 @@ class BPELearn:
     @classmethod
     def learn_subwords(cls, term_freqs: Dict[str, int], vocab_size: int,
                        min_co_evidence: int = DEF_MIN_CO_EV,
-                       char_min_freq=DEF_CHAR_MIN_FREQ,
-                       word_min_freq=DEF_WORD_MIN_FREQ) -> List[Type]:
+                       word_min_freq: int=DEF_WORD_MIN_FREQ,
+                       char_coverage: float=DEF_CHAR_COVERAGE) -> List[Type]:
         """
         :param term_freqs:
         :param vocab_size: final vocab size: reserved + chars + user_specified  + merges;
           special case, when `vocab_size=-1` the returned vocab will have just reserved + chars
         :param min_co_evidence: min co evidence for pair merges
-        :param char_min_freq: characters below this frequency will be unk'ed
+        :param char_coverage: percentage of characters to be covered by inital alphabet
         :param word_min_freq: words below this frequency will be excluded for learning BPE
         :return: List of Type
         """
-        assert char_min_freq >= 1
         assert word_min_freq >= 1
+        assert not char_coverage or 0 < char_coverage <= 1
 
         log.info(f"Total types: {len(term_freqs)}")
         term_freqs = {cls.prepare_word(word): freq for word, freq in term_freqs.items()
@@ -328,15 +327,8 @@ class BPELearn:
                 alphabet[ch] += freq
             alphabet[term[-2:]] += freq  # ending + whitespace marker go together as a single byte
             """
-        if char_min_freq > 1:
-            includes = {ch: freq for ch, freq in alphabet.items() if freq >= char_min_freq}
-            excludes = {ch: ct for ch, ct in alphabet.items() if ch not in includes}
-            unk_count = sum(excludes.values())
-            log.info(f'unked chars count:{unk_count} from types:{excludes}')
-            alphabet = includes
-            alphabet[Reseved.UNK_TOK[0]] = unk_count
-        else:
-            log.info("Character coverage: full")
+        alphabet, unk_count = filter_types_coverage(alphabet, coverage=char_coverage)
+        alphabet[Reseved.UNK_TOK[0]] = unk_count
 
         init_vocab = Reseved.with_reserved_types()  # initial vocab with reserved toks
         for idx, t in enumerate(init_vocab):
