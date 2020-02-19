@@ -9,7 +9,7 @@ __description__ = """nlcodec is a collection of encoder-decoder schemes for natu
 DEF_MIN_CO_EV = 5
 DEF_WORD_MIN_FREQ = 1  # minimum times a word should exist to be used for word vocab
 DEF_CHAR_MIN_FREQ = 20  # minimum times a char should be seen to be included in init vocab
-DEF_CHAR_COVERAGE = 0.9995  # Credits to google/sentencepiece for this idea;
+DEF_CHAR_COVERAGE = 0.9999  # Credits to google/sentencepiece for this idea;
 
 
 import logging as log
