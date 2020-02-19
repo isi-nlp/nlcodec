@@ -3,7 +3,7 @@
 # Author: Thamme Gowda [tg (at) isi (dot) edu] 
 # Created: 2019-10-25
 
-__version__ = 0.1
+__version__ = 0.2
 __description__ = """nlcodec is a collection of encoder-decoder schemes for natural language text"""
 
 DEF_MIN_CO_EV = 5
