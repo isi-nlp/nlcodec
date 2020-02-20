@@ -7,7 +7,7 @@ from typing import Dict, Any, Iterator, TextIO
 import sys
 from pathlib import Path
 
-from nlcodec import learn_vocab, load_scheme, encode, decode
+from nlcodec import learn_vocab, load_scheme, encode, decode, __version__, __description__
 from nlcodec import DEF_WORD_MIN_FREQ, DEF_CHAR_MIN_FREQ, DEF_CHAR_COVERAGE
 
 
@@ -26,7 +26,10 @@ class MyFormatter(argparse.ArgumentDefaultsHelpFormatter):
 
 
 def parse_args() -> Dict[str, Any]:
-    p = argparse.ArgumentParser(formatter_class=MyFormatter)
+    p = argparse.ArgumentParser(formatter_class=MyFormatter, prog='nlcodec',
+                                description=__description__,
+                                epilog='Visit https://github.com/isi-nlp/nlcodec for more')
+    p.add_argument('-v', '--version', action='version', version=f'%(prog)s {__version__}')
     p.add_argument("task", choices=['learn', 'encode', 'decode', 'estimate'],
                    help='''R|"task" or sub-command.
     "learn" - learns vocabulary. use --level and vocab_size for type and size 
