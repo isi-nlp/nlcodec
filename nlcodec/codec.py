@@ -484,15 +484,3 @@ def decode(inp: Iterator[str], scheme: EncoderScheme, indices=False) -> Iterator
         else:
             line = scheme.decode_str(seq)
         yield line
-
-if __name__ == '__main__':
-    p = '/Users/tg/work/me/rtg/src/nlcodec/deen.bpe.model'
-    f = load_scheme(p)
-    t = f.table[31990]
-    print(t)
-    """
-    for i, k in enumerate(t.get_permutations(name=True)):
-        print(i, k)
-    """
-    for i in range(20):
-        print(i, t.get_stochastic_split(name=False, split_ratio=0.5))
