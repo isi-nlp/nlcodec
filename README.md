@@ -14,13 +14,13 @@ In addition, it has a reasonably fast Byte Pair Encoding (BPE) library implement
 # Installation 
 Please run only one of these
 ```bash
-# Clone repo for development mode
-git clone https://github.com/thammegowda/nlcodec
+# Clone repo for development mode (preferred  mode)
+git clone https://github.com/isi-nlp/nlcodec
 cd nlcodec
-pip install --editable .
+pip install --editable . 
 
-# Install from github
-$ pip install git+https://github.com/thammegowda/nlcodec.git
+# Install from github, directly
+$ pip install git+https://github.com/isi-nlp/nlcodec.git
 
 
 # Install from pypi  (TODO: for now this code is private)
@@ -98,6 +98,55 @@ head  somefile.tok  | nlcodec decode -m bpe.model -idx
 head  somefile.tok  | nlcodec estimate -m bpe.model
 
 ```
+
+## Python API
+
+### Using a vocabulary
+```python
+from nlcodec import  load_scheme
+path = 'path/to/vocab.model'
+vocab = load_scheme(path)
+
+line = 'this is a sample sentence'
+# encode a line of text into list of ids
+vocab.encode(line)
+
+# parallel encode a bunch of lines using multiple cpu
+vocab.encode_parallel(seqs=[line], n_cpus=2)
+
+# encode a line of text into pieces 
+vocab.encode_str(line)
+
+# decode
+vocab.decode(vocab.encode(line))
+vocab.decode_str(vocab.encode_str(line))
+```
+
+### Creating a vocabulary
+```python
+from nlcodec import learn_vocab
+inp = ['line 1', 'line 2']
+level = 'bpe' # other options = char, word
+model = 'path/to/vocab.model'
+learn_vocab(inp, level, model, vocab_size=8000, min_freq=1, char_coverage=0.9995)
+```
+
+
+### BPE Subword sub optimal splits for regularization
+ 
+```python
+from nlcodec import load_scheme, BPEScheme
+path = 'path/to/bpe-vocab.model'
+bpe: BPEScheme = load_scheme(path)
+some_type = bpe.table[1000] # select some bpe piece type
+
+# get stochastic split
+some_type.get_stochastic_split(split_ratio=0.5, name=False)
+# get all possible permutations 
+some_type.get_permutations(name=False)
+
+```
+
 
 # Authors 
 + [Thamme Gowda](https://twitter.com/thammegowda) 

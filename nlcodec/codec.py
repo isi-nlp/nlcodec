@@ -16,6 +16,7 @@ from nlcodec import __version__, log
 from nlcodec.dstruct import TrNode
 from nlcodec.utils import filter_types_coverage
 import os
+import random
 
 N_CPUS = max(1, mp.cpu_count() - 1)
 N_CPUS = int(os.environ.get('NLCODEC_THREADS', str(N_CPUS)))
@@ -147,6 +148,27 @@ class Type:  # Type as in word type vs token
         log.info(f"read {len(vocab)} types from {rdr.name}")
         return vocab, meta
 
+    def get_permutations(self, name=False) -> List[List[int]]:
+        """
+        gets all possible permutations of kids that could compose thise
+        :param name: get name of pieces instead of ids. default=False
+        :return: List of permutations
+        """
+        perms = [[self.name if name else self.idx]]
+        if self.kids:
+            left, right = self.kids
+            for left_kid in left.get_permutations(name=name):
+                for right_kid in right.get_permutations(name=name):
+                    perms.append(left_kid + right_kid)
+        return perms
+
+    def get_stochastic_split(self, name=False, split_ratio=0.1):
+        if self.kids and random.random() < split_ratio:
+            left, right = self.kids
+            return left.get_stochastic_split(name=name, split_ratio=split_ratio) \
+                   + right.get_stochastic_split(name=name, split_ratio=split_ratio)
+        else:
+            return [self.name if name else self.idx]
 
 class EncoderScheme:
 
@@ -405,6 +427,11 @@ class BPEScheme(CharScheme):
                                         init_vocab_factory=init_vocab_factory)
         return vocab
 
+    def stochastic_split(self, seq, split_ratio, name=False):
+        res = []
+        for idx in seq:
+            res += self.table[idx].get_stochastic_split(name=name, split_ratio=split_ratio)
+        return res
 
 #########################
 REGISTRY = {
