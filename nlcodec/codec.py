@@ -170,6 +170,7 @@ class Type:  # Type as in word type vs token
         else:
             return [self.name if name else self.idx]
 
+
 class EncoderScheme:
 
     def __init__(self, table: List[Type], validate=True, invertible=True):
@@ -372,7 +373,11 @@ class BPEScheme(CharScheme):
     def name(cls):
         return "bpe"
 
-    def encode_str(self, line: str) -> List[str]:
+    def encode(self, line: str, split_ratio: float = 0.) -> List[int]:
+        pieces = self.encode_str(line, split_ratio=split_ratio)
+        return [self.str_to_idx.get(piece, self.unk_idx) for piece in pieces]
+
+    def encode_str(self, line: str, split_ratio: float = 0.) -> List[str]:
         seq = self.space_char.join(line.strip().split()) + self.space_char
         res: List[int] = []
         """
@@ -405,6 +410,9 @@ class BPEScheme(CharScheme):
                 # either cases, reset the states; and 'seq' should be at least one unit smaller
                 prev_node, idx = self.root, 0,
                 data_node, data_idx = None, -1
+
+        if split_ratio > 0:
+            res = self.stochastic_split(res, split_ratio=split_ratio, name=False)
 
         return [self.table[idx].name for idx in res]
 
