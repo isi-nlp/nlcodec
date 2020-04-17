@@ -7,7 +7,7 @@ NLP tools. The codecs include :
 
 This project contains an easy to use, and consistent python and CLI API for performing comparisons 
 across the methods. 
-In addition, it has a reasonably fast Byte Pair Encoding (BPE) library implemented in pure python. 
+In addition, it has a reasonably fast Byte Pair Encoding (BPE) library implemented in *pure python*. 
 (Note: Speed comes with the cost of extra memory)
 
 
