@@ -1,14 +1,17 @@
 # NLCodec
-A set of (low level) Natural Language Encoder-Decoders (codecs), that we generally use in preprocessing stage of 
-NLP tools. The codecs include :
+A set of (low level) Natural Language Encoder-Decoders (codecs), that are useful in preprocessing stage of 
+NLP pipeline. These codecs include encoding of sequences into one of the following:
 1. Character
 2. Word
 3. BPE based subword
 
-This project contains an easy to use, and consistent python and CLI API for performing comparisons 
-across the methods. 
-In addition, it has a reasonably fast Byte Pair Encoding (BPE) library implemented in pure python. 
-(Note: Speed comes with the cost of extra memory)
+It provides python (so embed into your app) and CLI APIs (use it as stand alone tool).
+
+There are many BPE implementations available already, but this one provides differs:
+1. Pure python implementation that is easy to modify anything to try new ideas. 
+  (other implementations require c++ expertise to modify the core) 
+2. BPE model is a simple text that can be inspected with `less` or `cut`. It includes info on which pieces were put together and what frequencies etc. 
+3. Reasonably faster than the other pure python implementations -- speed in python comes with the cost of extra memory due to indexing.
 
 
 # Installation 
@@ -23,12 +26,12 @@ pip install --editable .
 $ pip install git+https://github.com/isi-nlp/nlcodec.git
 
 
-# Install from pypi  (TODO: for now this code is private)
+# Install from pypi
 $ pip install nlcodec
-
 ```
 pip installer registers a cli tool named `nlcodec` in PATH
- which serves is the command line interface. You can always trigger either via `python -m nlcodec` or 
+ which serves is the command line interface.
+  You can always trigger either via `python -m nlcodec` or 
  `python path/to/nlcodec/__main__.py` if you wish!
  
 
@@ -111,7 +114,7 @@ line = 'this is a sample sentence'
 # encode a line of text into list of ids
 vocab.encode(line)
 
-# parallel encode a bunch of lines using multiple cpu
+# parallel encode a bunch of lines using multiple cpus
 vocab.encode_parallel(seqs=[line], n_cpus=2)
 
 # encode a line of text into pieces 
@@ -150,8 +153,3 @@ some_type.get_permutations(name=False)
 
 # Authors 
 + [Thamme Gowda](https://twitter.com/thammegowda) 
-
-# License
-> This software is Copyright © 2019 The University of Southern California. All Rights Reserved.
-
-Refer to [LICENSE.txt](LICENSE.txt) for full terms

@@ -3,8 +3,8 @@
 # Author: Thamme Gowda [tg (at) isi (dot) edu] 
 # Created: 2019-10-25
 
-__version__ = 0.2
-__description__ = """nlcodec is a collection of encoder-decoder schemes for natural language text"""
+__version__ = '0.2.0'
+__description__ = """nlcodec is a collection of encoding schemes for natural language sequences"""
 
 DEF_MIN_CO_EV = 5
 DEF_WORD_MIN_FREQ = 1  # minimum times a word should exist to be used for word vocab

@@ -456,7 +456,7 @@ def learn_vocab(inp, level, model, vocab_size, min_freq=1, char_coverage=CHAR_CO
     Type.write_out(table=table, out=model)
 
 
-def load_scheme(path: Path) -> EncoderScheme:
+def load_scheme(path: Union[str, Path, TextIO]) -> EncoderScheme:
     types, meta = Type.read_vocab(path)
     assert meta
     max_level = meta['max_level']
