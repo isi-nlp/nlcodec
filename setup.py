@@ -13,7 +13,7 @@ classifiers = [  # copied from https://pypi.org/classifiers/
     'Topic :: Text Processing :: General',
     'Topic :: Text Processing :: Filters',
     'Topic :: Text Processing :: Linguistic',
-    'License :: OSI Approved :: Apache License 2.0',
+    'License :: OSI Approved :: Apache Software License',
     'Programming Language :: Python :: 3',
 ]
 
@@ -23,7 +23,7 @@ setup(
     description=nlcodec.__description__,
     long_description=long_description,
     long_description_content_type='text/markdown',
-    license='Apache License 2.0',
+    license='Apache Software License 2.0',
     classifiers=classifiers,
     python_requires='>=3.7',
     url='https://github.com/thammegowda/bpepp',
