@@ -1,7 +1,7 @@
 import nlcodec
 from pathlib import Path
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 long_description = Path('README.md').read_text(encoding='utf-8', errors='ignore')
 
@@ -32,7 +32,7 @@ setup(
     author='Thamme Gowda',
     author_email='tgowdan@gmail.com',
     #py_modules=['bpepp'],  # for a package dir with __init__.py use packages=['bpepp'],
-    packages=['nlcodec'],
+    packages=find_packages(exclude=['experimental']),
     entry_points={
         'console_scripts': ['nlcodec=nlcodec.__main__:main'],
     },
