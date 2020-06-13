@@ -25,6 +25,7 @@ assert N_CPUS >= 1
 from nlcodec import DEF_WORD_MIN_FREQ as WORD_MIN_FREQ
 from nlcodec import DEF_CHAR_MIN_FREQ as CHAR_MIN_FREQ
 from nlcodec import DEF_CHAR_COVERAGE as CHAR_COVERAGE
+from nlcodec import DEF_MIN_CO_EV as MIN_CO_EV
 
 
 class Reseved:
@@ -421,7 +422,7 @@ class BPEScheme(CharScheme):
 
     @classmethod
     def learn(cls, data: Iterator[str], vocab_size: int = 0, min_freq=WORD_MIN_FREQ,
-              coverage=CHAR_COVERAGE, **kwargs) -> List[Type]:
+              coverage=CHAR_COVERAGE, min_co_evidence=MIN_CO_EV, **kwargs) -> List[Type]:
         assert vocab_size > 0
         assert not kwargs
         term_freqs, line_count = WordScheme.term_frequencies(data)
@@ -432,7 +433,8 @@ class BPEScheme(CharScheme):
 
         from .bpe import BPELearn
         vocab = BPELearn.learn_subwords(term_freqs=term_freqs, vocab_size=vocab_size,
-                                        init_vocab_factory=init_vocab_factory)
+                                        init_vocab_factory=init_vocab_factory,
+                                        min_co_evidence=min_co_evidence)
         return vocab
 
     def stochastic_split(self, seq, split_ratio, name=False):
@@ -450,7 +452,8 @@ REGISTRY = {
 }
 
 
-def learn_vocab(inp, level, model, vocab_size, min_freq=1, char_coverage=CHAR_COVERAGE):
+def learn_vocab(inp, level, model, vocab_size, min_freq=1, char_coverage=CHAR_COVERAGE,
+                min_co_ev=MIN_CO_EV):
     if not min_freq or min_freq < 1:
         min_freq = WORD_MIN_FREQ if level == 'word' else CHAR_MIN_FREQ
         log.info(f"level={level} => default min_freq={min_freq}")
@@ -460,6 +463,8 @@ def learn_vocab(inp, level, model, vocab_size, min_freq=1, char_coverage=CHAR_CO
     log.info(f"data ={inp}")
     Scheme = REGISTRY[level]
     args = {} if level == 'word' else dict(coverage=char_coverage)  # no char_coverage for word
+    if level == 'bpe':
+        args['min_co_ev'] = min_co_ev
     table = Scheme.learn(inp, vocab_size=vocab_size, min_freq=min_freq, **args)
     Type.write_out(table=table, out=model)
 
