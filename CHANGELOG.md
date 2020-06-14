@@ -1,0 +1,14 @@
+# Changelog
+
+## 0.2.2 : 2020-06-14
+- Option to accept term frequencies as input
+- PySpark backend to compute word and char frequencies
+- `--min-co-ev` of BPE is CLI arg
+
+## 0.2.1 : 2020-05-30
+- FIX: `find_packages()` in `setup.py` file to include nested packages
+
+## 0.2.0 : 2020-04-17
+- uploaded to pypi : `pip install nlcodec`
+- public repository with apache license 2.0
+
