@@ -247,7 +247,8 @@ class EncoderScheme:
         raise NotImplementedError()
 
     @classmethod
-    def get_init_vocab(cls, term_freqs, coverage: float=0, line_count=None, min_freq=WORD_MIN_FREQ,
+    def get_init_vocab(cls, term_freqs, coverage: float = 0, line_count=None,
+                       min_freq=WORD_MIN_FREQ,
                        vocab_size=-1):
         vocab = Reseved.with_reserved_types()
         res_stats = {r_type.name: term_freqs.pop(r_type.name) for r_type in vocab if
@@ -317,11 +318,43 @@ class WordScheme(EncoderScheme):
         return stats, line_count
 
     @classmethod
+    def read_term_freqs(cls, data: Iterator[str], delim='\t') -> Tuple[Dict[str, int], int]:
+        stats = {}
+        line_count = -1
+        for idx, line in enumerate(data):
+            line = line.rstrip('\n')
+            if idx == 0 and line.startswith("#") and len(line.split(delim)) != 2:
+                try:
+                    import json
+                    meta = json.loads(line[1:])  # skip # at index 0
+                    line_count = meta.get('line_count', line_count)
+                except:
+                    pass
+                continue
+            term, freq = line.split("\t")
+            stats[term.strip()] = int(freq)
+        return stats, line_count
+
+    @classmethod
     def learn(cls, data: Iterator[str], vocab_size: int = 0, min_freq: int = WORD_MIN_FREQ,
-              coverage: float = 0, **kwargs) -> List[Type]:
-        assert not kwargs
-        log.info(f"Building {cls} vocab.. This might take some time")
-        stats, line_count = cls.term_frequencies(data=data)
+              coverage: float = 0, term_freqs=False, **kwargs) -> List[Type]:
+        """
+        :param data: input sentences
+        :param vocab_size: max vocabulary size.
+        :param min_freq: min frequency for inclusion in vocabulary. Excludes types with lower freq
+        :param coverage: Character coverage
+        :param term_freqs: is data the term_freqs ?
+        :param kwargs: place holder for any extra args
+        :return:
+        """
+        assert not kwargs, f'{kwargs} args are not allowed/understood'
+        if term_freqs: # input is term_freqs
+            log.info("Restoring term frequencies from input")
+            stats, line_count = cls.read_term_freqs(data=data)
+        else: # compute term freqs
+            log.info("Computing term frequencies from raw data")
+            stats, line_count = cls.term_frequencies(data=data)
+
         return cls.get_init_vocab(stats, coverage, line_count, min_freq, vocab_size)
 
 
@@ -422,17 +455,22 @@ class BPEScheme(CharScheme):
 
     @classmethod
     def learn(cls, data: Iterator[str], vocab_size: int = 0, min_freq=WORD_MIN_FREQ,
-              coverage=CHAR_COVERAGE, min_co_evidence=MIN_CO_EV, **kwargs) -> List[Type]:
+              coverage=CHAR_COVERAGE, min_co_evidence=MIN_CO_EV, term_freqs=False, **kwargs) -> List[Type]:
         assert vocab_size > 0
-        assert not kwargs
-        term_freqs, line_count = WordScheme.term_frequencies(data)
+        assert not kwargs, f'{kwargs} args are not allowed/understood'
+        if term_freqs:
+            log.info("Reading term freqs from input")
+            tfs, line_count = WordScheme.read_term_freqs(data)
+        else:
+            log.info("Computing term freqs from input")
+            tfs, line_count = WordScheme.term_frequencies(data)
 
         def init_vocab_factory(char_types):
             return CharScheme.get_init_vocab(char_types, line_count=line_count,
                                              coverage=coverage, min_freq=1)
 
         from .bpe import BPELearn
-        vocab = BPELearn.learn_subwords(term_freqs=term_freqs, vocab_size=vocab_size,
+        vocab = BPELearn.learn_subwords(term_freqs=tfs, vocab_size=vocab_size,
                                         init_vocab_factory=init_vocab_factory,
                                         min_co_evidence=min_co_evidence)
         return vocab
@@ -443,6 +481,7 @@ class BPEScheme(CharScheme):
             res += self.table[idx].get_stochastic_split(name=name, split_ratio=split_ratio)
         return res
 
+
 #########################
 REGISTRY = {
     'char': CharScheme,
@@ -452,8 +491,8 @@ REGISTRY = {
 }
 
 
-def learn_vocab(inp, level, model, vocab_size, min_freq=1, char_coverage=CHAR_COVERAGE,
-                min_co_ev=MIN_CO_EV):
+def learn_vocab(inp, level, model, vocab_size, min_freq=1, term_freqs=False,
+                char_coverage=CHAR_COVERAGE, min_co_ev=MIN_CO_EV):
     if not min_freq or min_freq < 1:
         min_freq = WORD_MIN_FREQ if level == 'word' else CHAR_MIN_FREQ
         log.info(f"level={level} => default min_freq={min_freq}")
@@ -462,10 +501,13 @@ def learn_vocab(inp, level, model, vocab_size, min_freq=1, char_coverage=CHAR_CO
     log.info(f"Learn Vocab for level={level} and store at {model}")
     log.info(f"data ={inp}")
     Scheme = REGISTRY[level]
-    args = {} if level == 'word' else dict(coverage=char_coverage)  # no char_coverage for word
+    args = {}
+    if level != 'word':
+        args['coverage'] = char_coverage  # no char_coverage for word
     if level == 'bpe':
-        args['min_co_ev'] = min_co_ev
-    table = Scheme.learn(inp, vocab_size=vocab_size, min_freq=min_freq, **args)
+        args['min_co_evidence'] = min_co_ev
+    table = Scheme.learn(inp, vocab_size=vocab_size, min_freq=min_freq, term_freqs=term_freqs,
+                         **args)
     Type.write_out(table=table, out=model)
 
 

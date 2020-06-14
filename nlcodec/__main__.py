@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from nlcodec import learn_vocab, load_scheme, encode, decode, __version__, __description__
-from nlcodec import DEF_WORD_MIN_FREQ, DEF_CHAR_MIN_FREQ, DEF_CHAR_COVERAGE
+from nlcodec import DEF_WORD_MIN_FREQ, DEF_CHAR_MIN_FREQ, DEF_CHAR_COVERAGE, DEF_MIN_CO_EV
 
 
 def write_lines(lines: Iterator[str], out: TextIO, line_break='\n'):
@@ -39,6 +39,9 @@ def parse_args() -> Dict[str, Any]:
 
     p.add_argument('-i', '--inp', type=argparse.FileType('r'), default=sys.stdin,
                    help='Input file path')
+    p.add_argument('-tfs', '--term-freqs', action='store_true', default=False,
+                   help='--inp is term frequencies Valid for task=learn.'
+                        ' See nlcodec.term_freq to obtain them')
     p.add_argument('-o', '--out', type=argparse.FileType('w'), default=sys.stdout,
                    help='Output file path. Not valid for "learn" or "estimate" task')
     p.add_argument('-m', '--model', type=Path, help='Path to model aka vocabulary file',
@@ -48,13 +51,13 @@ def parse_args() -> Dict[str, Any]:
                    help='Indices instead of strings. Valid for task=encode and task=decode')
 
     learn_args = p.add_argument_group("args for task=learn")
-    learn_args.add_argument('-vs', '--vocab_size', type=int, default=-1,
+    learn_args.add_argument('-vs', '--vocab-size', type=int, default=-1,
                             help='Vocabulary size. Valid only for task=learn. This is required for'
                                  ' "bpe", but optional for "word" and "char" models, specifying it'
                                  ' will trim the vocabulary at given top most frequent types.')
     learn_args.add_argument('-l', '--level', choices=['char', 'word', 'bpe'],
                             help='Encoding Level; Valid only for task=learn')
-    learn_args.add_argument('-mf', '--min_freq', default=None, type=int,
+    learn_args.add_argument('-mf', '--min-freq', default=None, type=int,
                             help='Minimum frequency of types for considering inclusion in vocabulary. '
                             'Types fewer than this frequency will be ignored. '
                             f'For --level=word or --level=bpe, freq is type freq and '
@@ -62,8 +65,12 @@ def parse_args() -> Dict[str, Any]:
                             f'for --level=char, characters fewer than this value'
                             f' will be excluded. default={DEF_CHAR_MIN_FREQ}')
 
-    learn_args.add_argument('-cv', '--char_coverage', default=DEF_CHAR_COVERAGE, type=float,
+    learn_args.add_argument('-cv', '--char-coverage', default=DEF_CHAR_COVERAGE, type=float,
                             help='Character coverage for --level=char or --level=bpe')
+
+    learn_args.add_argument('-mce', '--min-co-ev', default=DEF_MIN_CO_EV, type=int,
+                            help='Minimum Co-evidence for BPE merge.'
+                                 ' Valid when --task=learn and --level=bpe')
 
     args = vars(p.parse_args())
     return args
