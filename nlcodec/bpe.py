@@ -286,7 +286,7 @@ class BPELearn:
         rev_idx: Dict[str, int] = {word.name: word.idx for word in vocab}
         assert len(rev_idx) == len(vocab)  # one to one map
         assert vocab_size > len(vocab), f'vocab_size={vocab_size} is too small;' \
-            f' found {len(vocab)} in the init vocab!'
+            f' found {len(vocab)} in the init vocab! Set a value larger than {len(vocab)}'
 
         seqs_freqs = cls._make_idxs(rev_idx, term_freqs)
         learner = BPELearn(seqs_freqs, vocab=vocab)

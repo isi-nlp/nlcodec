@@ -99,7 +99,6 @@ head  somefile.tok  | nlcodec decode -m bpe.model -idx
 
 # estimate quality 
 head  somefile.tok  | nlcodec estimate -m bpe.model
-
 ```
 
 ## Python API
@@ -147,6 +146,59 @@ some_type = bpe.table[1000] # select some bpe piece type
 some_type.get_stochastic_split(split_ratio=0.5, name=False)
 # get all possible permutations 
 some_type.get_permutations(name=False)
+
+```
+
+## Scaling for Big data(sets)
+
+For larger datasets, you may take advantage of PySpark to compute term-frequencies on a separate step.
+The precomputed term frequencies can be specified to `nlcodec learn -tfs` i.e. by setting `-tfs` flag.
+
+To compute term frequencies
+- Install PySpark using `pip install pyspark`
+- Compute term frequencies 
+
+```bash
+
+$ python -m nlcodec.term_freq -h
+usage: term_freq.py [-h] [-i INP [INP ...]] [-wf WORD_FREQS] [-cf CHAR_FREQS]
+                    [-dd] [-ndd]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -i INP [INP ...], --inp INP [INP ...]
+                        Input file paths (default: None)
+  -wf WORD_FREQS, --word_freqs WORD_FREQS
+                        Output file path for word frequencies (default: None)
+  -cf CHAR_FREQS, --char_freqs CHAR_FREQS
+                        Output file path for character frequencies (default:
+                        None)
+  -dd, --dedup          Deduplicate the sentences: use only unique sequences
+                        (default: True)
+  -ndd, --no-dedup      Do not deduplicate. (default: False)
+
+```
+### Example
+```bash
+# use these environment vars
+export SPARK_DRIVER_MEM="4g"
+export SPARK_MATSER="local[*]"   # all CPU cores of local node
+python -m nlcodec.term_freq -dd -wf words.tsv -cf chars.tsv \
+    -i ~/work/datasets/wmt/data/*-*/*.en.tok 
+```
+`words.tsv` and `chars.tsv` have the word  and character frequencies respectively.
+```bash
+# word vocab of 32K
+python -m nlcodec learn -i words.tsv -tfs -l word -vs 32000 -m word.model
+
+# Character vocab of 99.95% coverage
+python -m nlcodec learn -i chars.tsv -tfs -l char  -mf 1 -cv 0.9995 -m char.model
+
+# BPE vocab of 8K 
+python -m nlcodec learn -i words.tsv -tfs -l bpe -vs 8000 -m bpe.model
+
+# BPE vocab until minimum merge frequency is 100; set -vs=64000  as some large number 
+python -m nlcodec learn -i words.tsv -tfs -l bpe -vs 64000 -m bpe.model -cv 0.99995 -mce 100
 
 ```
 
