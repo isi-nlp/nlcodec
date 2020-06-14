@@ -10,12 +10,15 @@ from pathlib import Path
 import json
 
 SPARK_DRIVER_MEM = os.environ.get("SPARK_DRIVER_MEM", "4g")
+SPARK_MASTER = os.environ.get("SPARK_MASTER", "local[*]")
+SPARK_APP_NAME = os.environ.get("SPARK_APP", "NLCoDec")
 log.basicConfig(level=log.INFO)
 
-def get_spark():
+def get_spark(app_name=SPARK_APP_NAME, master=SPARK_MASTER, driver_mem=SPARK_DRIVER_MEM):
     return SparkSession.builder \
-        .appName("NL Codec") \
-        .config("spark.driver.memory", SPARK_DRIVER_MEM) \
+        .appName(app_name) \
+        .master(master)\
+        .config("spark.driver.memory", driver_mem) \
         .getOrCreate()
 
 def word_counts(paths: List[Path], dedup=True):
