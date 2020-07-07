@@ -5,7 +5,7 @@
 from pyspark.sql import SparkSession
 import logging as log
 import os
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from pathlib import Path
 import json
 
@@ -21,8 +21,17 @@ def get_spark(app_name=SPARK_APP_NAME, master=SPARK_MASTER, driver_mem=SPARK_DRI
         .config("spark.driver.memory", driver_mem) \
         .getOrCreate()
 
-def word_counts(paths: List[Path], dedup=True):
-    spark = get_spark()
+def word_counts(paths: List[Path], dedup=True, spark=None) \
+        -> Tuple[Dict[str, int], Dict[str, int], int]:
+    """
+
+    :param paths: List of paths of plain text files
+    :param dedup: deduplicate lines
+    :param spark: (optional) provide a spark instance;
+     By default, a local spark session is launched and stopped
+    :return: word_freqs, char_freqs, line_count
+    """
+    spark = spark or get_spark()
     log.info(f"Spark Session is up; you may check web UI")
     try:
         for p in paths:
