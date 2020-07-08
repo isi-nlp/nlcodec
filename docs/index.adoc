@@ -1,0 +1,17 @@
+= Natural Language Encoder Decoder (NLCodec)
+Thamme Gowda @ USC Information Sciences Institute, Natural Language Group
+:doctype: book
+:encoding: utf-8
+:lang: en
+:toclevels: 3
+:sectnums:
+:sectnumlevels: 4
+:data-uri:
+:toc: left
+//injects google analytics to <head>
+:docinfo2:
+:description: NLCodec home page
+:keywords: NLCodec, BPE, Byte Pair Encoding, NLP, Natural Language Processing
+
+include::intro.adoc[]
+

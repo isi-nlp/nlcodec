@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.3 : 2020-07-07
+- Option to supply preconfigured `spark` session object
+- Add docs 
+
+
 ## 0.2.2 : 2020-06-14
 - Option to accept term frequencies as input
 - PySpark backend to compute word and char frequencies

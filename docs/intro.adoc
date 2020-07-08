@@ -1,8 +1,5 @@
-# NLCodec
-
-NOTE: The docs are available at https://isi-nlp.github.io/nlcodec
-
-A set of (low level) Natural Language Encoder-Decoders (codecs), that are useful in preprocessing stage of 
+== NLCodec
+A set of (low level) Natural Language Encoder-Decoders (codecs), that are useful in preprocessing stage of
 NLP pipeline. These codecs include encoding of sequences into one of the following:
 1. Character
 2. Word
@@ -11,35 +8,37 @@ NLP pipeline. These codecs include encoding of sequences into one of the followi
 It provides python (so embed into your app) and CLI APIs (use it as stand alone tool).
 
 There are many BPE implementations available already, but this one provides differs:
-1. Pure python implementation that is easy to modify anything to try new ideas. 
-  (other implementations require c++ expertise to modify the core) 
-2. BPE model is a simple text that can be inspected with `less` or `cut`. It includes info on which pieces were put together and what frequencies etc. 
+1. Pure python implementation that is easy to modify anything to try new ideas.
+  (other implementations require c++ expertise to modify the core)
+2. BPE model is a simple text that can be inspected with `less` or `cut`. It includes info on which pieces were put together and what frequencies etc.
 3. Reasonably faster than the other pure python implementations -- speed in python comes with the cost of extra memory due to indexing.
 
 
-# Installation 
+== Installation
 Please run only one of these
-```bash
+[source,bash]
+----
+# Install from pypi (recommended)
+$ pip install nlcodec
+
 # Clone repo for development mode (preferred  mode)
 git clone https://github.com/isi-nlp/nlcodec
 cd nlcodec
-pip install --editable . 
+pip install --editable .
 
 # Install from github, directly
 $ pip install git+https://github.com/isi-nlp/nlcodec.git
+----
 
-
-# Install from pypi
-$ pip install nlcodec
-```
 pip installer registers a cli tool named `nlcodec` in PATH
  which serves is the command line interface.
-  You can always trigger either via `python -m nlcodec` or 
+  You can always trigger either via `python -m nlcodec` or
  `python path/to/nlcodec/__main__.py` if you wish!
- 
 
-## Usage 
-```bash
+
+== Usage
+
+----
 $ python -m nlcodec -h
 usage: __main__.py [-h] [-i INP] [-o OUT] -m MODEL [-idx] [-vs VOCAB_SIZE]
                    [-l {char,word,bpe}] [-mf MIN_FREQ]
@@ -48,8 +47,8 @@ usage: __main__.py [-h] [-i INP] [-o OUT] -m MODEL [-idx] [-vs VOCAB_SIZE]
 positional arguments:
   {learn,encode,decode,estimate}
                         "task" or sub-command.
-                            "learn" - learns vocabulary. use --level and vocab_size for type and size 
-                            "encode" - encodes a dataset 
+                            "learn" - learns vocabulary. use --level and vocab_size for type and size
+                            "encode" - encodes a dataset
                             "decode" - decodes an already encoded dataset
                             "estimate" - estimates quality attributes of an encoding
 
@@ -82,11 +81,12 @@ args for task=learn:
                         characters fewer than this value will be excluded.
                         default=20 (default: None)
 
-```
+----
 
-Example: 
+Example:
 
-```
+[source,bash]
+----
 # learn
 head -2000 somefile.tok | nlcodec learn -l bpe -m bpe.model --vocab_size 2000
 
@@ -100,46 +100,51 @@ head  somefile.tok  | nlcodec encode -m bpe.model -idx
 head  somefile.tok  | nlcodec decode -m bpe.model
 head  somefile.tok  | nlcodec decode -m bpe.model -idx
 
-# estimate quality 
+# estimate quality
 head  somefile.tok  | nlcodec estimate -m bpe.model
-```
+----
 
-## Python API
+== Python API
 
-### Using a vocabulary
-```python
+=== Using a vocabulary
+
+[source,python]
+----
 from nlcodec import  load_scheme
 path = 'path/to/vocab.model'
 vocab = load_scheme(path)
-
 line = 'this is a sample sentence'
+
 # encode a line of text into list of ids
 vocab.encode(line)
 
 # parallel encode a bunch of lines using multiple cpus
 vocab.encode_parallel(seqs=[line], n_cpus=2)
 
-# encode a line of text into pieces 
+# encode a line of text into pieces
 vocab.encode_str(line)
 
 # decode
 vocab.decode(vocab.encode(line))
 vocab.decode_str(vocab.encode_str(line))
-```
+----
 
-### Creating a vocabulary
-```python
+=== Creating a vocabulary
+
+[source,python]
+----
 from nlcodec import learn_vocab
 inp = ['line 1', 'line 2']
 level = 'bpe' # other options = char, word
 model = 'path/to/vocab.model'
 learn_vocab(inp, level, model, vocab_size=8000, min_freq=1, char_coverage=0.9995)
-```
+----
 
 
-### BPE Subword sub optimal splits for regularization
- 
-```python
+=== BPE Subword sub optimal splits for regularization
+
+[source,python]
+----
 from nlcodec import load_scheme, BPEScheme
 path = 'path/to/bpe-vocab.model'
 bpe: BPEScheme = load_scheme(path)
@@ -147,22 +152,22 @@ some_type = bpe.table[1000] # select some bpe piece type
 
 # get stochastic split
 some_type.get_stochastic_split(split_ratio=0.5, name=False)
-# get all possible permutations 
+# get all possible permutations
 some_type.get_permutations(name=False)
+----
 
-```
-
-## Scaling for Big data(sets)
+=== Scaling for Big data(sets)
 
 For larger datasets, you may take advantage of PySpark to compute term-frequencies on a separate step.
 The precomputed term frequencies can be specified to `nlcodec learn -tfs` i.e. by setting `-tfs` flag.
 
 To compute term frequencies
+
 - Install PySpark using `pip install pyspark`
-- Compute term frequencies 
+- Compute term frequencies
 
-```bash
-
+[source,bash]
+----
 $ python -m nlcodec.term_freq -h
 usage: term_freq.py [-h] [-i INP [INP ...]] [-wf WORD_FREQS] [-cf CHAR_FREQS]
                     [-dd] [-ndd]
@@ -180,31 +185,79 @@ optional arguments:
                         (default: True)
   -ndd, --no-dedup      Do not deduplicate. (default: False)
 
-```
-### Example
-```bash
+----
+
+=== Example
+
+[source,bash]
+----
 # use these environment vars
 export SPARK_DRIVER_MEM="4g"
 export SPARK_MATSER="local[*]"   # all CPU cores of local node
 python -m nlcodec.term_freq -dd -wf words.tsv -cf chars.tsv \
-    -i ~/work/datasets/wmt/data/*-*/*.en.tok 
-```
+    -i ~/work/datasets/wmt/data/*-*/*.en.tok
+----
+
 `words.tsv` and `chars.tsv` have the word  and character frequencies respectively.
-```bash
+[source,bash]
+----
 # word vocab of 32K
 python -m nlcodec learn -i words.tsv -tfs -l word -vs 32000 -m word.model
 
 # Character vocab of 99.95% coverage
 python -m nlcodec learn -i chars.tsv -tfs -l char  -mf 1 -cv 0.9995 -m char.model
 
-# BPE vocab of 8K 
+# BPE vocab of 8K
 python -m nlcodec learn -i words.tsv -tfs -l bpe -vs 8000 -m bpe.model
 
-# BPE vocab until minimum merge frequency is 100; set -vs=64000  as some large number 
+# BPE vocab until minimum merge frequency is 100; set -vs=64000  as some large number
 python -m nlcodec learn -i words.tsv -tfs -l bpe -vs 64000 -m bpe.model -cv 0.99995 -mce 100
+----
 
-```
+=== Using Spark+NLCodec via python API
 
 
-# Authors 
-+ [Thamme Gowda](https://twitter.com/thammegowda) 
+[source,python]
+----
+from typing import List
+from nlcodec import learn_vocab, term_freq
+from pathlib import Path
+import logging as log
+
+def train(model_type: str, vocab_size: int, model_path: str, files: List[str],
+          char_coverage: float = 0, dedup=True, spark=None):
+    """
+    :param model_type: word, char, bpe
+    :param vocab_size: vocabulary size
+    :param model_path: where to store vocabulary model
+    :param files: text for creating vcabulary
+    :param char_coverage: character coverage (0, 1]. value <= 0 => default coverage
+    :param: spark: an instance of spark.sql.SparkSession
+    :return:
+    """
+
+    kwargs = dict(char_coverage=char_coverage) if char_coverage > 0 else {}
+    paths = [f if isinstance(f, Path) else Path(f) for f in files]
+    wfs, chfs, n_lines = term_freq.word_counts(paths=paths, dedup=dedup, spark=spark)
+    log.info(f"Lines = {n_lines:,}, Word Types: {len(wfs):,} Char Types:{len(chfs):,}")
+    inp = chfs if model_type == 'char' else wfs
+    learn_vocab(inp=inp, level=model_type, model=model_path, vocab_size=vocab_size,
+                term_freqs=True, **kwargs)
+----
+
+In the above example, if you already have `spark.sql.SparkSession` instance, set it to `spark` argument.
+By default, a local SparkSession will be created. and shutdown.
+
+To control the default spark backend, set these environment variables before calling the above code.
+[source,python]
+----
+import os
+os.environ["SPARK_DRIVER_MEM"]="4g"
+os.environ["SPARK_MATSER"]="local[*]"
+----
+
+= Acknowledgements
+
+Author: https://twitter.com/thammegowda[Thamme Gowda]
+
+This work was done at USC Information Sciences Institute as part the general machine translation research.
