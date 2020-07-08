@@ -31,6 +31,7 @@ def word_counts(paths: List[Path], dedup=True, spark=None) \
      By default, a local spark session is launched and stopped
     :return: word_freqs, char_freqs, line_count
     """
+    own_spark = not spark
     spark = spark or get_spark()
     log.info(f"Spark Session is up; you may check web UI")
     try:
@@ -65,8 +66,10 @@ def word_counts(paths: List[Path], dedup=True, spark=None) \
         return word_freqs, char_freqs, line_count
 
     finally:
-        log.info(f"Stopping spark session")
-        spark.stop()
+        # only stop the own spark, not the user given spark
+        if own_spark:
+            log.info(f"Stopping spark session")
+            spark.stop()
 
 def write_stats(stats: Dict[str, int], out, **meta):
     stats = sorted(stats.items(), key=lambda x: x[1], reverse=True)
