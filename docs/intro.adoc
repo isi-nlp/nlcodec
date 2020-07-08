@@ -12,6 +12,7 @@ There are many BPE implementations available already, but this one provides diff
   (other implementations require c++ expertise to modify the core)
 2. BPE model is a simple text that can be inspected with `less` or `cut`. It includes info on which pieces were put together and what frequencies etc.
 3. Reasonably faster than the other pure python implementations -- speed in python comes with the cost of extra memory due to indexing.
+4. PySpark backend for extracting term frequencies from large datasets
 
 
 == Installation
@@ -36,7 +37,7 @@ pip installer registers a cli tool named `nlcodec` in PATH
  `python path/to/nlcodec/__main__.py` if you wish!
 
 
-== Usage
+== CLI Usage
 
 ----
 $ python -m nlcodec -h
@@ -141,7 +142,7 @@ learn_vocab(inp, level, model, vocab_size=8000, min_freq=1, char_coverage=0.9995
 ----
 
 
-=== BPE Subword sub optimal splits for regularization
+== BPE Subword sub optimal splits for regularization
 
 [source,python]
 ----
@@ -156,7 +157,7 @@ some_type.get_stochastic_split(split_ratio=0.5, name=False)
 some_type.get_permutations(name=False)
 ----
 
-=== Scaling for Big data(sets)
+== Scaling for Big data(sets) with PySpark
 
 For larger datasets, you may take advantage of PySpark to compute term-frequencies on a separate step.
 The precomputed term frequencies can be specified to `nlcodec learn -tfs` i.e. by setting `-tfs` flag.
@@ -187,7 +188,7 @@ optional arguments:
 
 ----
 
-=== Example
+=== CLI example
 
 [source,bash]
 ----
@@ -214,7 +215,7 @@ python -m nlcodec learn -i words.tsv -tfs -l bpe -vs 8000 -m bpe.model
 python -m nlcodec learn -i words.tsv -tfs -l bpe -vs 64000 -m bpe.model -cv 0.99995 -mce 100
 ----
 
-=== Using Spark+NLCodec via python API
+=== Python API example
 
 
 [source,python]
@@ -232,17 +233,24 @@ def train(model_type: str, vocab_size: int, model_path: str, files: List[str],
     :param model_path: where to store vocabulary model
     :param files: text for creating vcabulary
     :param char_coverage: character coverage (0, 1]. value <= 0 => default coverage
-    :param: spark: an instance of spark.sql.SparkSession
+    :param: spark: an instance of spark.sql.SparkSession (optional)
     :return:
     """
 
     kwargs = dict(char_coverage=char_coverage) if char_coverage > 0 else {}
-    paths = [f if isinstance(f, Path) else Path(f) for f in files]
-    wfs, chfs, n_lines = term_freq.word_counts(paths=paths, dedup=dedup, spark=spark)
-    log.info(f"Lines = {n_lines:,}, Word Types: {len(wfs):,} Char Types:{len(chfs):,}")
-    inp = chfs if model_type == 'char' else wfs
-    learn_vocab(inp=inp, level=model_type, model=model_path, vocab_size=vocab_size,
-                term_freqs=True, **kwargs)
+    stats_file = Path(model_path + '.termfreqs')
+    if not stats_file.exists():
+        log.info("Extracting term frequencies... ")
+        paths = [f if isinstance(f, Path) else Path(f) for f in files]
+        wfs, chfs, n_lines = term_freq.word_counts(paths=paths, dedup=dedup, spark=spark)
+        log.info(f"Lines = {n_lines:,}, Word Types: {len(wfs):,} Char Types:{len(chfs):,}")
+        stats = chfs if model_type == 'char' else wfs
+        log.info(f"Writing frequencies to {stats_file}")
+        with stats_file.open('w') as out:
+            term_freq.write_stats(stats=stats, out=out, line_count=n_lines)
+        kwargs['term_freqs'] = True
+    inp = stats_file.read_text().splitlines()
+    learn_vocab(inp=inp, level=model_type, model=model_path, vocab_size=vocab_size, **kwargs)
 ----
 
 In the above example, if you already have `spark.sql.SparkSession` instance, set it to `spark` argument.

@@ -458,15 +458,18 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <ul class="sectlevel1">
 <li><a href="#_nlcodec">1. NLCodec</a></li>
 <li><a href="#_installation">2. Installation</a></li>
-<li><a href="#_usage">3. Usage</a></li>
+<li><a href="#_cli_usage">3. CLI Usage</a></li>
 <li><a href="#_python_api">4. Python API</a>
 <ul class="sectlevel2">
 <li><a href="#_using_a_vocabulary">4.1. Using a vocabulary</a></li>
 <li><a href="#_creating_a_vocabulary">4.2. Creating a vocabulary</a></li>
-<li><a href="#_bpe_subword_sub_optimal_splits_for_regularization">4.3. BPE Subword sub optimal splits for regularization</a></li>
-<li><a href="#_scaling_for_big_datasets">4.4. Scaling for Big data(sets)</a></li>
-<li><a href="#_example">4.5. Example</a></li>
-<li><a href="#_using_sparknlcodec_via_python_api">4.6. Using Spark+NLCodec via python API</a></li>
+</ul>
+</li>
+<li><a href="#_bpe_subword_sub_optimal_splits_for_regularization">5. BPE Subword sub optimal splits for regularization</a></li>
+<li><a href="#_scaling_for_big_datasets_with_pyspark">6. Scaling for Big data(sets) with PySpark</a>
+<ul class="sectlevel2">
+<li><a href="#_cli_example">6.1. CLI example</a></li>
+<li><a href="#_python_api_example">6.2. Python API example</a></li>
 </ul>
 </li>
 <li><a href="#_acknowledgements">Acknowledgements</a></li>
@@ -492,7 +495,8 @@ NLP pipeline. These codecs include encoding of sequences into one of the followi
 1. Pure python implementation that is easy to modify anything to try new ideas.
   (other implementations require c++ expertise to modify the core)
 2. BPE model is a simple text that can be inspected with <code>less</code> or <code>cut</code>. It includes info on which pieces were put together and what frequencies etc.
-3. Reasonably faster than the other pure python implementations&#8201;&#8212;&#8201;speed in python comes with the cost of extra memory due to indexing.</p>
+3. Reasonably faster than the other pure python implementations&#8201;&#8212;&#8201;speed in python comes with the cost of extra memory due to indexing.
+4. PySpark backend for extracting term frequencies from large datasets</p>
 </div>
 </div>
 </div>
@@ -525,7 +529,7 @@ $ pip install git+https://github.com/isi-nlp/nlcodec.git</code></pre>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_usage">3. Usage</h2>
+<h2 id="_cli_usage">3. CLI Usage</h2>
 <div class="sectionbody">
 <div class="listingblock">
 <div class="content">
@@ -635,8 +639,11 @@ learn_vocab(inp, level, model, vocab_size=<span style="color:#00D">8000</span>, 
 </div>
 </div>
 </div>
-<div class="sect2">
-<h3 id="_bpe_subword_sub_optimal_splits_for_regularization">4.3. BPE Subword sub optimal splits for regularization</h3>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_bpe_subword_sub_optimal_splits_for_regularization">5. BPE Subword sub optimal splits for regularization</h2>
+<div class="sectionbody">
 <div class="listingblock">
 <div class="content">
 <pre class="CodeRay highlight"><code data-lang="python"><span style="color:#080;font-weight:bold">from</span> <span style="color:#B44;font-weight:bold">nlcodec</span> <span style="color:#080;font-weight:bold">import</span> <span style="color:#B44;font-weight:bold">load_scheme</span>, <span style="color:#B44;font-weight:bold">BPEScheme</span>
@@ -651,8 +658,10 @@ some_type.get_permutations(name=<span style="color:#069">False</span>)</code></p
 </div>
 </div>
 </div>
-<div class="sect2">
-<h3 id="_scaling_for_big_datasets">4.4. Scaling for Big data(sets)</h3>
+</div>
+<div class="sect1">
+<h2 id="_scaling_for_big_datasets_with_pyspark">6. Scaling for Big data(sets) with PySpark</h2>
+<div class="sectionbody">
 <div class="paragraph">
 <p>For larger datasets, you may take advantage of PySpark to compute term-frequencies on a separate step.
 The precomputed term frequencies can be specified to <code>nlcodec learn -tfs</code> i.e. by setting <code>-tfs</code> flag.</p>
@@ -690,9 +699,8 @@ optional arguments:
   -ndd, --no-dedup      Do not deduplicate. (default: False)</code></pre>
 </div>
 </div>
-</div>
 <div class="sect2">
-<h3 id="_example">4.5. Example</h3>
+<h3 id="_cli_example">6.1. CLI example</h3>
 <div class="listingblock">
 <div class="content">
 <pre class="CodeRay highlight"><code data-lang="bash"># use these environment vars
@@ -722,7 +730,7 @@ python -m nlcodec learn -i words.tsv -tfs -l bpe -vs 64000 -m bpe.model -cv 0.99
 </div>
 </div>
 <div class="sect2">
-<h3 id="_using_sparknlcodec_via_python_api">4.6. Using Spark+NLCodec via python API</h3>
+<h3 id="_python_api_example">6.2. Python API example</h3>
 <div class="listingblock">
 <div class="content">
 <pre class="CodeRay highlight"><code data-lang="python"><span style="color:#080;font-weight:bold">from</span> <span style="color:#B44;font-weight:bold">typing</span> <span style="color:#080;font-weight:bold">import</span> <span style="color:#B44;font-weight:bold">List</span>
@@ -738,17 +746,24 @@ python -m nlcodec learn -i words.tsv -tfs -l bpe -vs 64000 -m bpe.model -cv 0.99
 </span><span>    :param model_path: where to store vocabulary model</span><span>
 </span><span>    :param files: text for creating vcabulary</span><span>
 </span><span>    :param char_coverage: character coverage (0, 1]. value &lt;= 0 =&gt; default coverage</span><span>
-</span><span>    :param: spark: an instance of spark.sql.SparkSession</span><span>
+</span><span>    :param: spark: an instance of spark.sql.SparkSession (optional)</span><span>
 </span><span>    :return:</span><span>
 </span><span>    </span><span style="color:black">&quot;&quot;&quot;</span></span>
 
     kwargs = <span style="color:#369;font-weight:bold">dict</span>(char_coverage=char_coverage) <span style="color:#080;font-weight:bold">if</span> char_coverage &gt; <span style="color:#00D">0</span> <span style="color:#080;font-weight:bold">else</span> {}
-    paths = [f <span style="color:#080;font-weight:bold">if</span> <span style="color:#369;font-weight:bold">isinstance</span>(f, Path) <span style="color:#080;font-weight:bold">else</span> Path(f) <span style="color:#080;font-weight:bold">for</span> f <span style="color:#080;font-weight:bold">in</span> files]
-    wfs, chfs, n_lines = term_freq.word_counts(paths=paths, dedup=dedup, spark=spark)
-    log.info(f<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Lines = {n_lines:,}, Word Types: {len(wfs):,} Char Types:{len(chfs):,}</span><span style="color:#710">&quot;</span></span>)
-    inp = chfs <span style="color:#080;font-weight:bold">if</span> model_type == <span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">'</span><span style="color:#D20">char</span><span style="color:#710">'</span></span> <span style="color:#080;font-weight:bold">else</span> wfs
-    learn_vocab(inp=inp, level=model_type, model=model_path, vocab_size=vocab_size,
-                term_freqs=<span style="color:#069">True</span>, **kwargs)</code></pre>
+    stats_file = Path(model_path + <span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">'</span><span style="color:#D20">.termfreqs</span><span style="color:#710">'</span></span>)
+    <span style="color:#080;font-weight:bold">if</span> <span style="color:#080;font-weight:bold">not</span> stats_file.exists():
+        log.info(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Extracting term frequencies... </span><span style="color:#710">&quot;</span></span>)
+        paths = [f <span style="color:#080;font-weight:bold">if</span> <span style="color:#369;font-weight:bold">isinstance</span>(f, Path) <span style="color:#080;font-weight:bold">else</span> Path(f) <span style="color:#080;font-weight:bold">for</span> f <span style="color:#080;font-weight:bold">in</span> files]
+        wfs, chfs, n_lines = term_freq.word_counts(paths=paths, dedup=dedup, spark=spark)
+        log.info(f<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Lines = {n_lines:,}, Word Types: {len(wfs):,} Char Types:{len(chfs):,}</span><span style="color:#710">&quot;</span></span>)
+        stats = chfs <span style="color:#080;font-weight:bold">if</span> model_type == <span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">'</span><span style="color:#D20">char</span><span style="color:#710">'</span></span> <span style="color:#080;font-weight:bold">else</span> wfs
+        log.info(f<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">Writing frequencies to {stats_file}</span><span style="color:#710">&quot;</span></span>)
+        <span style="color:#080;font-weight:bold">with</span> stats_file.open(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">'</span><span style="color:#D20">w</span><span style="color:#710">'</span></span>) <span style="color:#080;font-weight:bold">as</span> out:
+            term_freq.write_stats(stats=stats, out=out, line_count=n_lines)
+        kwargs[<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">'</span><span style="color:#D20">term_freqs</span><span style="color:#710">'</span></span>] = <span style="color:#069">True</span>
+    inp = stats_file.read_text().splitlines()
+    learn_vocab(inp=inp, level=model_type, model=model_path, vocab_size=vocab_size, **kwargs)</code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -782,7 +797,7 @@ os.environ[<span style="background-color:hsla(0,100%,50%,0.05)"><span style="col
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2020-07-07 20:16:15 -0700
+Last updated 2020-07-07 20:20:49 -0700
 </div>
 </div>
 </body>
