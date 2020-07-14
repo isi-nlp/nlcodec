@@ -210,7 +210,7 @@ class EncoderScheme:
         return self.vocab_size
 
     @property
-    def name(self):
+    def name(cls):
         raise NotImplementedError()
 
     @abc.abstractmethod
@@ -300,7 +300,7 @@ class WordScheme(EncoderScheme):
         return " ".join(seq)
 
     @property
-    def name(self):
+    def name(cls):
         return "word"
 
     @classmethod
@@ -327,7 +327,7 @@ class CharScheme(WordScheme):
     level = Level.char
 
     @property
-    def name(self):
+    def name(cls):
         return "char"
 
     @classmethod
@@ -366,7 +366,7 @@ class BPEScheme(CharScheme):
         return root
 
     @property
-    def name(self):
+    def name(cls):
         return "bpe"
 
     def encode(self, line: str, split_ratio: float = 0.) -> List[int]:
