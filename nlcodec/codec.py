@@ -210,10 +210,6 @@ class EncoderScheme:
     def __len__(self):
         return self.vocab_size
 
-    @property
-    @classmethod
-    def name(cls):
-        raise NotImplementedError()
 
     @abc.abstractmethod
     def encode_str(cls, line: str) -> List[str]:
@@ -293,6 +289,7 @@ class EncoderScheme:
 
 class WordScheme(EncoderScheme):
     level = Level.word
+    name = "word"
 
     @classmethod
     def encode_str(cls, line: str) -> List[str]:
@@ -301,11 +298,6 @@ class WordScheme(EncoderScheme):
     @classmethod
     def decode_str(cls, seq: List[str]) -> str:
         return " ".join(seq)
-
-    @property
-    @classmethod
-    def name(cls):
-        return "word"
 
     @classmethod
     def term_frequencies(cls, data: Iterator[str]) -> Tuple[Dict[str, int], int]:
@@ -361,11 +353,7 @@ class WordScheme(EncoderScheme):
 class CharScheme(WordScheme):
     space_char = '▁'  # U+2581 same as google/sentencepiece
     level = Level.char
-
-    @property
-    @classmethod
-    def name(cls):
-        return "char"
+    name = "char"
 
     @classmethod
     def encode_str(cls, line: str) -> List[str]:
@@ -384,6 +372,7 @@ class CharScheme(WordScheme):
 
 class BPEScheme(CharScheme):
     level = Level.subword
+    name = "bpe"
 
     def __init__(self, table: List[Type]):
         super().__init__(table=table, invertible=False)
@@ -402,10 +391,6 @@ class BPEScheme(CharScheme):
         assert not root.has_data  # root node is not data node
         return root
 
-    @property
-    @classmethod
-    def name(cls):
-        return "bpe"
 
     def encode(self, line: str, split_ratio: float = 0.) -> List[int]:
         pieces = self.encode_str(line, split_ratio=split_ratio)
