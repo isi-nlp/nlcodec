@@ -1,5 +1,10 @@
 # Changelog
 
+
+## 0.2.4 : 2020-07-14
+- fix issue with `name` as class property (#24, #25)
+
+
 ## 0.2.3 : 2020-07-07
 - Option to supply preconfigured `spark` session object
 - Add docs 
