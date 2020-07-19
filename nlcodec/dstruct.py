@@ -4,17 +4,19 @@
 # Created: 2019-10-25
 
 from typing import List, Dict, Union, Optional, TypeVar, Generic, Any
-from dataclasses import dataclass, field
 import heapq
 
 
-@dataclass(repr=False)
 class LnNode:  # doubly linked list node data structure; used for learning BPE
-    val: int
-    left: Optional['LnNode'] = None
-    right: Optional['LnNode'] = None
-    freq: int = 1
-    data: Any = None # any extra payload
+    __slots__ = 'val', 'left', 'right', 'freq', 'data'
+
+    def __init__(self, val: int, left: Optional['LnNode'] = None,
+                 right: Optional['LnNode'] = None, freq: int = 1, data: Any = None):
+        self.val = val
+        self.left = left
+        self.right = right
+        self.freq = freq
+        self.data = data
 
     def __eq__(self, other):
         # caution: these calls are recursive on left and right; cycles would cause infinite loop
@@ -75,13 +77,17 @@ T = TypeVar('T')  # T for index; Dont use I, since 'I' agree with pep008
 D = TypeVar('D')  # D for data
 
 
-@dataclass()
 class TrNode(Generic[T, D]):  # Trie Node or Tree Node
-    idx: T
-    name: Optional[str] = None
-    data: Optional[D] = None
-    parent: Optional['TrNode'] = None
-    kids: Dict[T, 'TrNode'] = field(default_factory=dict)
+
+    __slots__ =  'idx', 'name', 'data', 'parent', 'kids'
+
+    def __init__(self, idx: T, name: Optional[str] = None, data: Optional[D] = None,
+                 parent: Optional['TrNode'] = None, kids: Dict[T, 'TrNode'] = None):
+        self.idx = idx
+        self.name = name
+        self.data = data
+        self.parent = parent
+        self.kids = dict() if kids is None else kids
 
     def get_node(self, idxs, create_missing: bool = True) -> 'TrNode[T, D]':
         if not idxs:
@@ -108,12 +114,12 @@ class TrNode(Generic[T, D]):  # Trie Node or Tree Node
     def data_node_count(self):
         return (1 if self.has_data else 0) + sum(k.data_node_count for k in self.kids.values())
 
-class MaxHeap:
 
+class MaxHeap:
     "Offers Max Heap which is a wrapper to fast min heap implementation from heapq "
 
     def __init__(self, items: Dict[Any, int]):
-        self.min_heap = [(-val, node) for node, val in items.items() ]
+        self.min_heap = [(-val, node) for node, val in items.items()]
         heapq.heapify(self.min_heap)
 
     def push(self, node, val):
