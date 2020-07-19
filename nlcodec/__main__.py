@@ -7,7 +7,7 @@ from typing import Dict, Any, Iterator, TextIO
 import sys
 from pathlib import Path
 
-from nlcodec import learn_vocab, load_scheme, encode, decode, __version__, __description__
+from nlcodec import learn_vocab, load_scheme, encode, decode, __version__, __description__, log
 from nlcodec import DEF_WORD_MIN_FREQ, DEF_CHAR_MIN_FREQ, DEF_CHAR_COVERAGE, DEF_MIN_CO_EV
 
 
@@ -83,7 +83,15 @@ def main():
         args.pop('out')  # No output
         args.pop('indices')  # No output
         assert args.get('level'), 'argument --level is required for "learn" task'
+        import time
+        from datetime import timedelta
+        from nlcodec.bpe import max_RSS
+        st = time.time()
+        st_mem = max_RSS()[1]
         learn_vocab(**args)
+        delta = timedelta(seconds=time.time() - st)
+        et_mem = max_RSS()[1]
+        log.info(f"Time taken: {delta}; Memory: {st_mem} --> {et_mem}")
     elif task in ('encode', 'decode'):
         scheme = load_scheme(args.pop('model'))
         inp, out, indices = args['inp'], args['out'], args.get('indices', False)

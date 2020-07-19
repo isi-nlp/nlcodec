@@ -9,6 +9,7 @@ import resource
 import sys
 import copy
 from tqdm import tqdm
+import time
 
 from nlcodec import log
 from nlcodec.codec import Type, Level, Reseved
@@ -131,19 +132,23 @@ class BPELearn:
                 raise ValueError(f"{uni} has freq={freq}; expected positive value")
         log.info(f"Index is valid")
 
-    def learn_codes(self, n_merges: int, min_co_evidence, code_level: int) -> List[Type]:
+    def learn_codes(self, n_merges: int, min_co_evidence, code_level: int,
+                    log_every=2) -> List[Type]:
         """
         :param n_merges: how many more merges
         :param min_co_evidence: min evidence (co-occurrence frequency);
          causes early stop upon failure
         :param code_level: what level to use for new code types created during merge
             for instance level=1 for word bpe; level=2 for seq bpe
+        :param log_every: delay, in seconds between logs
         :return:
         """
         uni, bi_ixs = self.uni, self.bi_ixs
         heap = MaxHeap(self.bi)
         heap_dirty = coll.defaultdict(int)  # subtractions aren't updated in max-heap, they are here
         vocab = self.vocab
+        last_log_t = time.time()
+        log.info(f"logs every {log_every} seconds")
         for i in range(n_merges):
             # Using MaxHeap for faster lookup of max. But heap gets a bit dirty, so a bit of cleanup
             max_pair, pair_freq = heap.pop()
@@ -164,8 +169,10 @@ class BPELearn:
 
             new_type_idx = len(vocab)
             a, b = max_pair
-            log.info(f"{(100 * i / n_merges):.2f}% :: {new_type_idx} || {a:4}:{uni[a]:5}"
-                     f" || {b:4}:{uni[b]:5} || {pair_freq:,} || {vocab[a].name} {vocab[b].name}")
+            if time.time() - last_log_t >= log_every:
+                log.info(f"{(100 * i / n_merges):.2f}% :: {new_type_idx} || {a:4}:{uni[a]:5}"
+                         f" || {b:4}:{uni[b]:5} || {pair_freq:,} || {vocab[a].name} {vocab[b].name}")
+                last_log_t = time.time()
 
             # code -> bigram   (flatten out bigram;  resolve interim codes
             new_type = Type(vocab[a].name + vocab[b].name, idx=new_type_idx, freq=pair_freq,
