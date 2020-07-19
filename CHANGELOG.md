@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.5  (WIP)
+
+- add `nlcodec-freqs` CLI to setup.py
+- log time and memory usage for `learn` task
+- log BPE merge operations once every 2s instead of all operations
+- using`__slots__`: ~25% faster, %30 less memory for BPE with 3M word types 
+
 
 ## 0.2.4 : 2020-07-14
 - fix issue with `name` as class property (#24, #25)
