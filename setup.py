@@ -31,10 +31,13 @@ setup(
     platforms=['any'],
     author='Thamme Gowda',
     author_email='tgowdan@gmail.com',
-    #py_modules=['bpepp'],  # for a package dir with __init__.py use packages=['bpepp'],
+
     packages=find_packages(exclude=['experimental']),
     entry_points={
-        'console_scripts': ['nlcodec=nlcodec.__main__:main'],
+        'console_scripts': [
+            'nlcodec=nlcodec.__main__:main'
+            'nlcodec-freq=nlcodec.term_freq:main'
+        ],
     },
     install_requires=['tqdm']
 )
