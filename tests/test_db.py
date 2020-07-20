@@ -39,6 +39,7 @@ def test_multipart_db():
             yield x, y
 
     recs = {i: r for i, r in enumerate(get_data())}
+    rec_count = {i: 0 for i in recs}
 
     path = Path('tmp.test.multipartdb')
     try:
@@ -47,9 +48,12 @@ def test_multipart_db():
                                 overwrite=True)
         assert len(db) == len(recs)
         for id1, row in db:
-            x,y = recs[id1]
+            x, y = recs[id1]
             assert np.array_equal(row.x, x), f'{id1} :: {row.x} == {x}'
             assert np.array_equal(row.y, y), f'{id1} :: {row.y} == {y}'
+            rec_count[id1] += 1
+
+        assert all(c == 1 for c in rec_count.values())
     finally:
         shutil.rmtree(path)
         pass
@@ -79,7 +83,7 @@ def test_large_db():
 
 
 def test_best_type():
-    assert best_dtype(0, 127) == np.uint8, f'{best_dtype(0, 127) }'
+    assert best_dtype(0, 127) == np.uint8, f'{best_dtype(0, 127)}'
     assert best_dtype(0, 255) == np.uint8
     assert best_dtype(-1, 127) == np.int8
 
