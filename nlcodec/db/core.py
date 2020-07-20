@@ -4,18 +4,17 @@
 # Created: 7/19/20
 
 
-from typing import Union, List, Sequence, Tuple, Iterator, Dict, Any
-import numpy as np
-import pickle
-import os
-import shutil
-import sys
-from pathlib import Path
 import itertools
 import json
-import random
-
+import os
+import pickle
+import shutil
 from collections import namedtuple
+from pathlib import Path
+from typing import Union, List, Iterator, Dict, Any
+
+import numpy as np
+
 from nlcodec import log
 
 Array = np.ndarray
@@ -25,7 +24,7 @@ DEF_MIN = np.iinfo(DEF_TYPE).min
 DEF_MAX = np.iinfo(DEF_TYPE).max
 
 
-def best_type(mn, mx):
+def best_dtype(mn, mx):
     """
     determines best (integer) data type for a given range of integer
     :param mn: min value
@@ -81,8 +80,8 @@ class SeqField:
             return self
 
         def build(self):
-            dtype = best_type(mn=min(self.data), mx=max(self.data))
-            refs_type = best_type(mn=0, mx=max(len(self.data), self.max_len))
+            dtype = best_dtype(mn=min(self.data), mx=max(self.data))
+            refs_type = best_dtype(mn=0, mx=max(len(self.data), self.max_len))
             return SeqField(name=self.name, ids=self.ids,
                             refs=np.array(self.refs, dtype=refs_type),
                             data=np.array(self.data, dtype=dtype))
@@ -151,7 +150,7 @@ class Db:
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        del state['RowType']   # cant serialize inner class
+        del state['RowType']  # cant serialize inner class
         return state
 
     def __setstate__(self, state):
@@ -192,8 +191,8 @@ class Db:
         for _id in self.ids:
             yield _id, self.RowType(*(f[_id] for f in self.fields))
 
-class MultipartDb(Db):
 
+class MultipartDb(Db):
     part_digits = 3
 
     @classmethod

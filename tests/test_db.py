@@ -3,7 +3,7 @@
 # Author: Thamme Gowda [tg (at) isi (dot) edu] 
 # Created: 7/19/20
 
-from nlcodec.db.core import Db, MultipartDb, best_type
+from nlcodec.db.core import Db, MultipartDb, best_dtype
 import numpy as np
 import random
 from pathlib import Path
@@ -79,28 +79,28 @@ def test_large_db():
 
 
 def test_best_type():
-    assert best_type(0, 127) == np.uint8, f'{best_type(0, 127) }'
-    assert best_type(0, 255) == np.uint8
-    assert best_type(-1, 127) == np.int8
+    assert best_dtype(0, 127) == np.uint8, f'{best_dtype(0, 127) }'
+    assert best_dtype(0, 255) == np.uint8
+    assert best_dtype(-1, 127) == np.int8
 
-    assert best_type(-1, 255) == np.int16
-    assert best_type(0, 257) == np.uint16
+    assert best_dtype(-1, 255) == np.int16
+    assert best_dtype(0, 257) == np.uint16
 
-    assert best_type(0, 16_000) == np.uint16
-    assert best_type(0, 32_000) == np.uint16
-    assert best_type(0, 65_000) == np.uint16
-    assert best_type(0, 66_000) == np.uint32
-    assert best_type(0, 2_000_000) == np.uint32
-    assert best_type(0, 4_000_000_000) == np.uint32
-    assert best_type(0, 5_000_000_000) == np.uint64
+    assert best_dtype(0, 16_000) == np.uint16
+    assert best_dtype(0, 32_000) == np.uint16
+    assert best_dtype(0, 65_000) == np.uint16
+    assert best_dtype(0, 66_000) == np.uint32
+    assert best_dtype(0, 2_000_000) == np.uint32
+    assert best_dtype(0, 4_000_000_000) == np.uint32
+    assert best_dtype(0, 5_000_000_000) == np.uint64
 
-    assert best_type(-1, 16_000) == np.int16
-    assert best_type(-1, 32_000) == np.int16
-    assert best_type(-10, 33_000) == np.int32
-    assert best_type(-1, 65_000) == np.int32
-    assert best_type(-20, 66_000) == np.int32
-    assert best_type(-20, 2_000_000_000) == np.int32
-    assert best_type(-20, 3_000_000_000) == np.int64
+    assert best_dtype(-1, 16_000) == np.int16
+    assert best_dtype(-1, 32_000) == np.int16
+    assert best_dtype(-10, 33_000) == np.int32
+    assert best_dtype(-1, 65_000) == np.int32
+    assert best_dtype(-20, 66_000) == np.int32
+    assert best_dtype(-20, 2_000_000_000) == np.int32
+    assert best_dtype(-20, 3_000_000_000) == np.int64
 
 
 def test_slices():
