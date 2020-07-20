@@ -9,7 +9,6 @@ import json
 import os
 import pickle
 import shutil
-from collections import namedtuple
 from pathlib import Path
 from typing import Union, List, Iterator, Dict, Any
 
@@ -22,6 +21,7 @@ Array = np.ndarray
 DEF_TYPE = np.uint16  # uint16 is [0, 65,535]
 DEF_MIN = np.iinfo(DEF_TYPE).min
 DEF_MAX = np.iinfo(DEF_TYPE).max
+DEF_PART_SIZE = 1_000_000
 
 
 def best_dtype(mn, mx):
@@ -146,17 +146,6 @@ class Db:
             assert self._len == len(fields[i])  ## all are same length
             assert self.ids == set(self.fields[i].ids.keys())
 
-        self.RowType = namedtuple('Row', field_names=self.field_names)
-
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        del state['RowType']  # cant serialize inner class
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        self.RowType = namedtuple('Row', field_names=self.field_names)
-
     def __len__(self):
         return self._len
 
@@ -189,7 +178,7 @@ class Db:
 
     def __iter__(self):
         for _id in self.ids:
-            yield _id, self.RowType(*(f[_id] for f in self.fields))
+            yield _id, tuple(f[_id] for f in self.fields)
 
 
 class MultipartDb(Db):
@@ -207,7 +196,7 @@ class MultipartDb(Db):
             pass
 
     @classmethod
-    def create(cls, path, recs, names, has_id=False, overwrite=False, part_size=1_000_000):
+    def create(cls, path, recs, names, has_id=False, overwrite=False, part_size=DEF_PART_SIZE):
         path = as_path(path)
         if path.exists() and len(os.listdir(path)) > 0:
             if overwrite:

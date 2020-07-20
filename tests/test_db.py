@@ -21,9 +21,9 @@ def test_db():
     recs = list(get_data())
     db = Db.create(recs=recs, names=['x', 'y'])
     assert len(db) == len(recs)
-    for (x, y), (_id, row) in zip(recs, db):
-        assert np.array_equal(row.x, x)
-        assert np.array_equal(row.y, y)
+    for (x, y), (id1, (x1, y1)) in zip(recs, db):
+        assert np.array_equal(x1, x)
+        assert np.array_equal(y1, y)
 
 
 def test_multipart_db():
@@ -47,10 +47,10 @@ def test_multipart_db():
                                 names=['x', 'y'], part_size=total // n_parts,
                                 overwrite=True)
         assert len(db) == len(recs)
-        for id1, row in db:
+        for id1, (x1, y1) in db:
             x, y = recs[id1]
-            assert np.array_equal(row.x, x), f'{id1} :: {row.x} == {x}'
-            assert np.array_equal(row.y, y), f'{id1} :: {row.y} == {y}'
+            assert np.array_equal(x1, x), f'{id1} :: {x1} == {x}'
+            assert np.array_equal(y1, y), f'{id1} :: {y1} == {y}'
             rec_count[id1] += 1
 
         assert all(c == 1 for c in rec_count.values())
