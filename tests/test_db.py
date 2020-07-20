@@ -8,18 +8,20 @@ import numpy as np
 import random
 from pathlib import Path
 import shutil
+import os
+
+
+def get_data(n_recs, vocab_size):
+    for i in range(n_recs):
+        _len = np.random.randint(4, 40)
+        x = np.random.randint(0, vocab_size, _len)
+        y = np.random.randint(0, vocab_size, _len + random.randint(0, 5))
+        yield x, y
 
 
 def test_db():
-    def get_data():
-        for i in range(20000):
-            l = np.random.randint(4, 25)
-            x = np.random.randint(0, 33000, l)
-            y = np.random.randint(0, 33000, l + random.randint(0, 5))
-            yield x, y
-
-    recs = list(get_data())
-    db = Db.create(recs=recs, names=['x', 'y'])
+    recs = list(get_data(n_recs=20_000, vocab_size=32_000))
+    db = Db.create(recs=recs, field_names=['x', 'y'])
     assert len(db) == len(recs)
     for (x, y), (id1, (x1, y1)) in zip(recs, db):
         assert np.array_equal(x1, x)
@@ -31,20 +33,13 @@ def test_multipart_db():
     total = 100_000 + (n_parts - 1)
     vocab_size = 33_000
 
-    def get_data():
-        for i in range(total):
-            l = np.random.randint(4, 25)
-            x = np.random.randint(0, vocab_size, l)
-            y = np.random.randint(0, vocab_size, l + random.randint(0, 5))
-            yield x, y
-
-    recs = {i: r for i, r in enumerate(get_data())}
+    recs = {i: r for i, r in enumerate(get_data(total, vocab_size))}
     rec_count = {i: 0 for i in recs}
 
     path = Path('tmp.test.multipartdb')
     try:
         db = MultipartDb.create(path=path, recs=recs.items(), has_id=True,
-                                names=['x', 'y'], part_size=total // n_parts,
+                                field_names=['x', 'y'], part_size=total // n_parts,
                                 overwrite=True)
         assert len(db) == len(recs)
         for id1, (x1, y1) in db:
@@ -64,17 +59,10 @@ def test_large_db():
     total = 1_000_000  # lines  can go upto 500M
     vocab_size = 64_000
 
-    def get_data():
-        for i in range(total):
-            l = np.random.randint(4, 40)
-            x = np.random.randint(0, vocab_size, l)
-            y = np.random.randint(0, vocab_size, l + random.randint(0, 5))
-            yield x, y
-
     path = Path('tmp.test.multipart.largedb')
     try:
-        db = MultipartDb.create(path=path, recs=get_data(), has_id=False,
-                                names=['x', 'y'], part_size=total // n_parts,
+        db = MultipartDb.create(path=path, recs=get_data(total, vocab_size), has_id=False,
+                                field_names=['x', 'y'], part_size=total // n_parts,
                                 overwrite=True)
         size = sum(f.stat().st_size for f in path.glob('**/*') if f.is_file())
         print(f'{len(db)} rows; {size:,} bytes')
@@ -114,3 +102,40 @@ def test_slices():
     data = list(range(n))
     for i, s in enumerate(MultipartDb.slices(stream, size=p)):
         assert np.array_equal(list(s), data[i * p: (i + 1) * p])
+
+
+def test_spark_write():
+    try:
+        import pyspark
+    except ImportError:
+        print("pyspark not found; skipping this test")
+        return
+    total = 100_000
+    vocab = 32_000
+    n_parts = 20
+    recs = get_data(n_recs=total, vocab_size=vocab)
+
+    from pyspark.sql import SparkSession
+    spark = SparkSession.builder \
+        .appName("NlCodecDb test") \
+        .master(os.environ.get("SPARK_MASTER", "local[*]")) \
+        .config("spark.driver.memory", os.environ.get("SPARK_DRIVER_MEM", "4g")) \
+        .getOrCreate()
+    path = Path('tmp.multipart.spark.db')
+    try:
+        rdd = (spark.sparkContext
+               .parallelize(enumerate(recs))
+               .repartition(n_parts)
+               )
+        bd = MultipartDb.Writer(path, field_names=['x', 'y'], max_parts=n_parts * 10, overwrite=True)
+        rdd.mapPartitionsWithIndex(bd).count()
+        bd.close()
+        db = MultipartDb.load(path)
+        assert len(db) == total
+
+    finally:
+        try:
+            shutil.rmtree(path)
+        finally:
+            spark.stop()
+

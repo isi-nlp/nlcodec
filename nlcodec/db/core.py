@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Union, List, Iterator, Dict, Any
 
 import numpy as np
+import math
 
 from nlcodec import log
 
@@ -22,6 +23,7 @@ DEF_TYPE = np.uint16  # uint16 is [0, 65,535]
 DEF_MIN = np.iinfo(DEF_TYPE).min
 DEF_MAX = np.iinfo(DEF_TYPE).max
 DEF_PART_SIZE = 1_000_000
+DEF_MAX_PARTS = 1_000
 
 
 def best_dtype(mn, mx):
@@ -44,6 +46,9 @@ def best_dtype(mn, mx):
     assert found_type, f'Could not find an integet type for [{min},{max}]'
     return found_type
 
+def part_path_pads(n_parts: int):
+    return math.ceil(math.log10(n_parts))
+
 
 def as_path(path: Union[str, Path]) -> Path:
     """
@@ -61,7 +66,7 @@ class SeqField:
 
     class Builder:
         """
-        Builder to assist creation of
+        Writer to assist creation of
         """
 
         def __init__(self, name):
@@ -163,26 +168,29 @@ class Db:
         return obj
 
     @classmethod
-    def create(cls, recs, names, has_id=False):
+    def create(cls, recs, field_names, has_id=False, path=None):
         """
         :param recs: Iterator[List[List[int]]] or Iterator[(id, List[List[int]])]
-        :param names: names for records
+        :param field_names: field names in records
         :param has_id: set True if recs already have id ie. tuple(id, fields),
            when set to False (default) ids are auto generated
+        :param path: path to save on disk (optional)
         :return:
         """
         if not has_id:
             recs = enumerate(recs)
-        fields = SeqField.create_many(names, recs)
-        return cls(fields=fields)
+        fields = SeqField.create_many(field_names, recs)
+        db = cls(fields=fields)
+        if path:
+            db.save(path)
+        return db
 
     def __iter__(self):
         for _id in self.ids:
             yield _id, tuple(f[_id] for f in self.fields)
 
 
-class MultipartDb(Db):
-    part_digits = 3
+class MultipartDb:
 
     @classmethod
     def slices(cls, stream, size):
@@ -196,35 +204,18 @@ class MultipartDb(Db):
             pass
 
     @classmethod
-    def create(cls, path, recs, names, has_id=False, overwrite=False, part_size=DEF_PART_SIZE):
-        path = as_path(path)
-        if path.exists() and len(os.listdir(path)) > 0:
-            if overwrite:
-                log.warning(f"Removing existing data at {path}")
-                shutil.rmtree(path)
-            else:
-                raise Exception(f'{path} already exists. not overwriting it')
-        path.mkdir(parents=True, exist_ok=True)
+    def create(cls, path, recs, field_names, has_id=False, overwrite=False,
+               part_size=DEF_PART_SIZE, max_parts=DEF_MAX_PARTS):
         if not has_id:
             recs = enumerate(recs)
+        builder = cls.Writer(path=path, field_names=field_names, overwrite=overwrite,
+                             max_parts=DEF_MAX_PARTS)
 
-        # keep only one part in memory
         part_num = -1
-        meta = dict(parts={})
-        disk_size = 0
         for sliced in cls.slices(recs, part_size):
             part_num += 1
-            part = Db.create(sliced, names=names, has_id=True)
-            part_path = path / f'part-{part_num:0{cls.part_digits}d}'
-            part.save(part_path)
-            disk_size += part_path.stat().st_size
-            meta['parts'][part_path.name] = dict(count=len(part), size=part_path.stat().st_size)
-            del part
-            log.info(f"disk_size = {disk_size:,}")
-
-        meta = json.dumps(meta, ensure_ascii=False, indent=2)
-        flag_file = path / '_SUCCESS'
-        flag_file.write_text(meta)
+            builder(part_num, recs=sliced)
+        builder.finish()
         return cls.load(path=path)
 
     @classmethod
@@ -255,6 +246,42 @@ class MultipartDb(Db):
         for path in self.part_paths:
             part = Db.load(path)
             yield from part
+
+    class Writer:
+
+        def __init__(self, path, field_names: List[str], overwrite=False,
+                     max_parts=DEF_MAX_PARTS):
+            self.field_names = field_names
+            path = as_path(path)
+            if path.exists() and len(os.listdir(path)) > 0:
+                if overwrite:
+                    log.warning(f"Removing existing data at {path}")
+                    shutil.rmtree(path)
+                else:
+                    raise Exception(f'{path} already exists. not overwriting it')
+            path.mkdir(parents=True, exist_ok=True)
+            self.path = path
+            self.part_path_pad = part_path_pads(max_parts)
+
+        def __call__(self, part_num: int, recs):
+            # assume recs have ids created externally
+            part = Db.create(recs, field_names=self.field_names, has_id=True)
+            part_path = self.path / f'part-{part_num:0{self.part_path_pad}d}'
+            part.save(part_path)
+            meta_path = part_path.with_suffix('.meta')
+            meta = dict(count=len(part), size=part_path.stat().st_size)
+            meta = json.dumps(meta, ensure_ascii=False, indent=2)
+            meta_path.write_text(meta)
+            return part_path, len(part)
+
+        def close(self):
+            parts = {}
+            for meta_path in self.path.glob("part-*.meta"):
+                part_name = meta_path.name.rstrip('.meta')
+                parts[part_name] = json.loads(meta_path.read_text())
+            meta = dict(parts=parts)
+            flag_file = self.path / '_SUCCESS'
+            flag_file.write_text(json.dumps(meta, indent=2))
 
 
 def main():
