@@ -46,6 +46,7 @@ def best_dtype(mn, mx):
     assert found_type, f'Could not find an integet type for [{min},{max}]'
     return found_type
 
+
 def part_path_pads(n_parts: int):
     return math.ceil(math.log10(n_parts))
 
@@ -148,8 +149,8 @@ class Db:
         self._len = len(self.fields[0])
         self.ids = set(self.fields[0].ids.keys())
         for i in range(1, len(fields)):
-            assert self._len == len(fields[i])  ## all are same length
-            assert self.ids == set(self.fields[i].ids.keys())
+            assert self._len == len(fields[i])  # all have same num of recs
+            assert self.ids == set(self.fields[i].ids.keys())  # and same IDs
 
     def __len__(self):
         return self._len
@@ -209,7 +210,7 @@ class MultipartDb:
         if not has_id:
             recs = enumerate(recs)
         builder = cls.Writer(path=path, field_names=field_names, overwrite=overwrite,
-                             max_parts=DEF_MAX_PARTS)
+                             max_parts=max_parts)
 
         part_num = -1
         for sliced in cls.slices(recs, part_size):
