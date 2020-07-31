@@ -681,7 +681,7 @@ Install PySpark using <code>pip install pyspark</code>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="CodeRay highlight"><code data-lang="bash">python -m nlcodec.learnpro
+<pre class="CodeRay highlight"><code data-lang="bash">python -m nlcodec.learn
  .... (same as &quot;python -m nlcodec learn&quot; sub command but with these extra otions: )
   -spark SPARK_MASTER, --spark-master SPARK_MASTER
                         Spark master (default: local[*])
@@ -691,7 +691,7 @@ Install PySpark using <code>pip install pyspark</code>
                         (default: True)
   -ndd, --no-dedup      Do not deduplicate. (default: False)
 
-$ python -m nlcodec.learnpro -i train.eng.tok train.kan.tok -l bpe -vs 8000  -m ~/tmp/bpe.8k.model
+$ python -m nlcodec.learn -i train.eng.tok train.kan.tok -l bpe -vs 8000  -m ~/tmp/bpe.8k.model
 
 # It created, two intermediate files
 ~/tmp/bpe.8k.charfreq.gz

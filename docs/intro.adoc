@@ -165,7 +165,7 @@ NOTE: Install PySpark using `pip install pyspark`
 
 [source,bash]
 ----
-python -m nlcodec.learnpro
+python -m nlcodec.learn
  .... (same as "python -m nlcodec learn" sub command but with these extra otions: )
   -spark SPARK_MASTER, --spark-master SPARK_MASTER
                         Spark master (default: local[*])
@@ -175,7 +175,7 @@ python -m nlcodec.learnpro
                         (default: True)
   -ndd, --no-dedup      Do not deduplicate. (default: False)
 
-$ python -m nlcodec.learnpro -i train.eng.tok train.kan.tok -l bpe -vs 8000  -m ~/tmp/bpe.8k.model
+$ python -m nlcodec.learn -i train.eng.tok train.kan.tok -l bpe -vs 8000  -m ~/tmp/bpe.8k.model
 
 # It created, two intermediate files
 ~/tmp/bpe.8k.charfreq.gz
