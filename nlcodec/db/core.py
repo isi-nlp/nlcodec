@@ -9,20 +9,22 @@ import json
 import os
 import pickle
 import shutil
+from collections import namedtuple
 from pathlib import Path
-from typing import Union, List, Iterator, Dict, Any
+from typing import Union, List, Iterator, Dict, Any, Tuple
 
 import numpy as np
 import math
-
+import random
 from nlcodec import log
 
 Array = np.ndarray
+Record = Tuple[Array]
 
 DEF_TYPE = np.uint16  # uint16 is [0, 65,535]
 DEF_MIN = np.iinfo(DEF_TYPE).min
 DEF_MAX = np.iinfo(DEF_TYPE).max
-DEF_PART_SIZE = 1_000_000
+DEF_PART_SIZE = 5_000_000
 DEF_MAX_PARTS = 1_000
 
 
@@ -108,6 +110,9 @@ class SeqField:
         start, length = self.refs[self.ids[item]]
         return self.data[start: start + length]
 
+    def get_len(self, _id):
+        return self.refs[self.ids[_id]][1]
+
     def keys(self):
         return self.ids.keys()
 
@@ -142,30 +147,44 @@ class SeqField:
 
 class Db:
 
-    def __init__(self, fields: List[SeqField]):
+    def __init__(self, fields: List[SeqField], rec_type=None):
         assert all(isinstance(f, SeqField) for f in fields)
-        self.fields = fields
         self.field_names = [f.name for f in fields]
-        self._len = len(self.fields[0])
-        self.ids = set(self.fields[0].ids.keys())
-        for i in range(1, len(fields)):
-            assert self._len == len(fields[i])  # all have same num of recs
-            assert self.ids == set(self.fields[i].ids.keys())  # and same IDs
+        self._rec_type = rec_type
+        self.fields = {f.name: f for f in fields}
+        self._len = len(fields[0])
+        self.ids = set(fields[0].ids.keys())
+        for fn, fd in self.fields.items():
+            assert self._len == len(fd)  # all have same num of recs
+            assert self.ids == set(fd.ids.keys())  # and same IDs
+
+    # noinspection PyPep8Naming
+    def RecType(self):
+        if not self._rec_type:
+            self._rec_type = namedtuple('RecType', ['id'] + self.field_names)
+        return self._rec_type
 
     def __len__(self):
         return self._len
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['_rec_type'] = None   # bcoz it is not pickleable
+        return state
+
     def save(self, path):
-        log.info(f"Saving to {path}")
+        log.debug(f"Saving to {path}")
         with open(path, 'wb') as f:
             pickle.dump(self, f)
 
     @classmethod
-    def load(cls, path) -> 'Db':
-        log.info(f"Loading from {path}")
+    def load(cls, path, rec_type=None) -> 'Db':
+        log.debug(f"Loading from {path}")
         with open(path, 'rb') as f:
             obj = pickle.load(f)
         assert isinstance(obj, cls)
+        if rec_type:
+            obj._rec_type = rec_type
         return obj
 
     @classmethod
@@ -186,9 +205,54 @@ class Db:
             db.save(path)
         return db
 
+    def __getitem__(self, _id):
+        cols = tuple(self.fields[fn][_id] for fn in self.field_names)
+        return self.RecType()(_id, *cols)
+
     def __iter__(self):
         for _id in self.ids:
-            yield _id, tuple(f[_id] for f in self.fields)
+            yield self[_id]
+
+    def _make_eq_len_batch_ids(self, length_field, batch_size):
+        field: SeqField = self.fields[length_field]
+
+        rows = np.array([(_id, field.get_len(_id)) for _id in field.ids])   # id, len
+        np.random.shuffle(rows)    # in-place, along the first axis; for extra rand within len group
+        rows = rows[rows[:, 1].argsort()]   # sort by second col wiz len
+        batches = []
+        batch = []
+        max_len = 0
+        for _id, _len in rows:
+            if _len < 1:
+                log.warning(f"Skipping record {_id}, either source or target is empty")
+                continue
+
+            if (len(batch) + 1) * max(max_len, _len) >= batch_size:
+                if _len > batch_size:
+                    raise Exception(f'Unable to make a batch of {batch_size} toks'
+                                    f' with a seq of {length_field} len:{_len}')
+                batches.append(np.array(batch))
+                batch = []  # new batch
+                max_len = 0
+
+            batch.append(_id)  # this one can go in
+            max_len = max(max_len, _len)
+        if batch:
+            batches.append(np.array(batch))
+        return batches
+
+    def make_eq_len_ran_batches(self, length_field, batch_size):
+
+        batches = self._make_eq_len_batch_ids(length_field=length_field, batch_size=batch_size)
+        if not batches:
+            raise Exception(f'Found no data. Please check config data paths')
+        log.info(f"length sorted random batches = {len(batches)}. Shuffling🔀...")
+        # every pass introduce some randomness
+        random.shuffle(batches)
+
+        for batch_ids in batches:
+            batch = [self[_id] for _id in batch_ids]
+            yield batch
 
 
 class MultipartDb:
@@ -216,11 +280,11 @@ class MultipartDb:
         for sliced in cls.slices(recs, part_size):
             part_num += 1
             builder(part_num, recs=sliced)
-        builder.finish()
+        builder.close()
         return cls.load(path=path)
 
     @classmethod
-    def load(cls, path) -> 'MultipartDb':
+    def load(cls, path, rec_type=None) -> 'MultipartDb':
         path = as_path(path)
         assert path.is_dir()
         flag_file = path / '_SUCCESS'
@@ -233,20 +297,31 @@ class MultipartDb:
             part_file.exists()
             part_files.append(part_file)
             rec_counts.append(stats['count'])
-        return cls(parts=part_files, rec_counts=rec_counts)
+        field_names = meta['field_names']
+        rec_type = rec_type or namedtuple('RecType', field_names)
+        return cls(parts=part_files, rec_counts=rec_counts, rec_type=rec_type)
 
-    def __init__(self, parts: List[Path], rec_counts: List[int]):
+    def __init__(self, parts: List[Path], rec_counts: List[int], rec_type):
         self.part_paths = parts
         self.rec_counts = rec_counts
         self._len = sum(rec_counts)
+        self.rec_type = rec_type
 
     def __len__(self):
         return self._len
 
     def __iter__(self):
         for path in self.part_paths:
-            part = Db.load(path)
+            part = Db.load(path, rec_type=self.rec_type)
             yield from part
+
+    def make_eq_len_ran_batches(self, length_field, batch_size) -> Iterator[List]:
+        # shuffle the parts
+        parts = self.part_paths.copy()
+        random.shuffle(parts)
+        for path in parts:
+            part = Db.load(path, rec_type=self.rec_type)
+            yield from part.make_eq_len_ran_batches(length_field, batch_size=batch_size)
 
     class Writer:
 
@@ -280,14 +355,13 @@ class MultipartDb:
             for meta_path in self.path.glob("part-*.meta"):
                 part_name = meta_path.name.rstrip('.meta')
                 parts[part_name] = json.loads(meta_path.read_text())
-            meta = dict(parts=parts)
+            meta = dict(parts=parts, field_names=self.field_names)
             flag_file = self.path / '_SUCCESS'
             flag_file.write_text(json.dumps(meta, indent=2))
 
 
 def main():
     pass
-
 
 if __name__ == '__main__':
     main()
