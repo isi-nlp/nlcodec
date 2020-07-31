@@ -1,0 +1,127 @@
+== Database
+
+`nlcodec.db.core` provides `Db` and `MultipartDb` which are
+great for optimized storage of unequal length sequences (which are prevalent in NLP/NMT).
+
+. `MultipartDb` divides large datasets into parks; so we can load and unload parts to avoid OOM or paging to slower disks.
+. It works nicely with pyspark partitions
+. Dynamically figures out the right inetegr size (1, 2, 4, 8 bytes) to reduce memory
+
+
+Sorry, didnt get enough time to docs to match with all the good stuff under-the-hood;
+please look at `test_db.py` and `test_db_batch.py` for example usecases. Here are some:
+
+[source,python]
+----
+from nlcodec.db.core import Db, MultipartDb
+from nlcodec import spark
+import numpy as np
+import random
+from pathlib import Path
+import shutil
+
+def get_data(n_recs, vocab_size):
+    for i in range(n_recs):
+        _len = np.random.randint(4, 40)
+        x = np.random.randint(0, vocab_size, _len)
+        y = np.random.randint(0, vocab_size, _len + random.randint(0, 5))
+        yield x, y
+
+def test_db():
+    recs = list(get_data(n_recs=20_000, vocab_size=32_000))
+    db = Db.create(recs=recs, field_names=['x', 'y'])
+    assert len(db) == len(recs)
+    for (x, y), rec in zip(recs, db):
+        assert np.array_equal(rec.x, x)
+        assert np.array_equal(rec.y, y)
+
+def test_large_db():
+    n_parts = 20
+    total = 1_000_000  # lines  can go upto 500M
+    vocab_size = 64_000
+
+    path = Path('tmp.test.multipart.largedb')
+    try:
+        db = MultipartDb.create(path=path, recs=get_data(total, vocab_size), has_id=False,
+                                field_names=['x', 'y'], part_size=total // n_parts,
+                                overwrite=True)
+        size = sum(f.stat().st_size for f in path.glob('**/*') if f.is_file())
+        print(f'{len(db)} rows; {size:,} bytes')
+    finally:
+        shutil.rmtree(path)
+
+
+def test_spark_write():
+    try:
+        import pyspark
+    except ImportError:
+        log.warning("pyspark not found; skipping this test")
+        return
+    total = 100_000
+    vocab = 32_000
+    n_parts = 20
+    recs = get_data(n_recs=total, vocab_size=vocab)
+    path = Path('tmp.multipart.spark.db')
+    try:
+        with spark.session() as session:
+            rdd = session.sparkContext.parallelize(enumerate(recs))
+            db = spark.rdd_as_db(rdd=rdd, db_path=path, field_names=['x', 'y'],
+                                 max_parts=n_parts * 10,  overwrite=True)
+        assert len(db) == total
+    finally:
+            shutil.rmtree(path)
+----
+
+== Batch
+
+`nlcodec.db.batch` offers `Batch` and `BatchIterable` that are useful for interacting with DBs.
+They are designed for NMT usecase for now, but (I believe, it) can be easily adapted to others.
+
+
+== `bitextdb`
+
+This is a CLI utility for encoding parallel text files using nlocdec and storing them in MultipartDb.
+This works on top of `pyspark`.
+
+----
+$ python -m nlcodec.bitextdb -h
+usage: bitextdb.py [-h] -sm PATH [-tm PATH] -st PATH -tt PATH -db PATH [-np N]
+                   [-sn SRC_COL] [-tn TGT_COL] [-sl SRC_LEN] [-tl TGT_LEN]
+                   [--truncate | --no-truncate] [-spark SPARK_MASTER]
+                   [-dm DRIVER_MEM]
+
+Encodes bitext nlcdec and stores them in db, using pyspark backend.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -sm PATH, --src-model PATH
+                        source model (default: None)
+  -tm PATH, --tgt-model PATH
+                        target model; default=same as src-model (default:
+                        None)
+  -st PATH, --src-text PATH
+                        source text (default: None)
+  -tt PATH, --tgt-text PATH
+                        target text (default: None)
+  -db PATH, --db PATH   Path to store db (default: None)
+  -np N, --num-parts N  A value greater than 0 forces the db to have these
+                        many parts (default: 0)
+  -sn SRC_COL, --src-col SRC_COL
+                        source column name (default: x)
+  -tn TGT_COL, --tgt-col TGT_COL
+                        target column name (default: y)
+  -sl SRC_LEN, --src-len SRC_LEN
+                        source length max (default: 256)
+  -tl TGT_LEN, --tgt-len TGT_LEN
+                        target length max (default: 256)
+  --truncate            truncate longer sentences (default: True)
+  --no-truncate         drop longer sentences (default: True)
+  -spark SPARK_MASTER, --spark_master SPARK_MASTER
+                        Use Spark master (default: local[*])
+  -dm DRIVER_MEM, --driver_mem DRIVER_MEM
+                        Memory for spark driver (default: 4g)
+
+
+$ python -m nlcodec.bitextdb -db ~/tmp/nldb-02 -sm ~/tmp/bpe.8k.model \
+  -st train.kan.tok -tt train.eng.tok --num-parts 20
+----

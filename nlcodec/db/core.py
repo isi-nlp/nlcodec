@@ -11,12 +11,13 @@ import pickle
 import shutil
 from collections import namedtuple
 from pathlib import Path
-from typing import Union, List, Iterator, Dict, Any, Tuple
+from typing import List, Iterator, Dict, Any, Tuple
 
 import numpy as np
 import math
 import random
 from nlcodec import log
+from nlcodec.utils import as_path
 
 Array = np.ndarray
 Record = Tuple[Array]
@@ -51,17 +52,6 @@ def best_dtype(mn, mx):
 
 def part_path_pads(n_parts: int):
     return math.ceil(math.log10(n_parts))
-
-
-def as_path(path: Union[str, Path]) -> Path:
-    """
-    returns an instance of Path, optionally converting string to Path when needed
-    :param path: instance of str or Path
-    :return: instance of Path
-    """
-    if not isinstance(path, Path):
-        path = Path(path)
-    return path
 
 
 class SeqField:
@@ -359,9 +349,12 @@ class MultipartDb:
             flag_file = self.path / '_SUCCESS'
             flag_file.write_text(json.dumps(meta, indent=2))
 
+        def __enter__(self):
+            return self
 
-def main():
-    pass
-
-if __name__ == '__main__':
-    main()
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            if exc_tb is None:
+                self.close()
+                return True
+            else:
+                return False

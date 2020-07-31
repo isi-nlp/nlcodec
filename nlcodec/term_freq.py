@@ -2,24 +2,15 @@
 #
 # Author: Thamme Gowda [tg (at) isi (dot) edu] 
 # Created: 6/13/20
-from pyspark.sql import SparkSession
-import logging as log
-import os
-from typing import List, Dict, Tuple
-from pathlib import Path
 import json
+import logging as log
+from pathlib import Path
+from typing import List, Dict, Tuple
 
-SPARK_DRIVER_MEM = os.environ.get("SPARK_DRIVER_MEM", "4g")
-SPARK_MASTER = os.environ.get("SPARK_MASTER", "local[*]")
-SPARK_APP_NAME = os.environ.get("SPARK_APP", "NLCoDec")
+from nlcodec import spark as spark_util
+
 log.basicConfig(level=log.INFO)
 
-def get_spark(app_name=SPARK_APP_NAME, master=SPARK_MASTER, driver_mem=SPARK_DRIVER_MEM):
-    return SparkSession.builder \
-        .appName(app_name) \
-        .master(master)\
-        .config("spark.driver.memory", driver_mem) \
-        .getOrCreate()
 
 def word_counts(paths: List[Path], dedup=True, spark=None) \
         -> Tuple[Dict[str, int], Dict[str, int], int]:
@@ -32,7 +23,7 @@ def word_counts(paths: List[Path], dedup=True, spark=None) \
     :return: word_freqs, char_freqs, line_count
     """
     own_spark = not spark
-    spark = spark or get_spark()
+    spark = spark or spark_util.get_session()
     log.info(f"Spark Session is up; you may check web UI")
     try:
         for p in paths:
@@ -50,18 +41,18 @@ def word_counts(paths: List[Path], dedup=True, spark=None) \
         # Tokenize
         # also include a special token, one per line to count lines
         # expand words as sep records
-        word_freqs = df.rdd.flatMap(lambda row: [ SENT_TAG ] + row.value.strip().split())\
-            .map(lambda word: (word, 1))\
-            .reduceByKey(lambda v1,  v2: v1 + v2)\
+        word_freqs = df.rdd.flatMap(lambda row: [SENT_TAG] + row.value.strip().split()) \
+            .map(lambda word: (word, 1)) \
+            .reduceByKey(lambda v1, v2: v1 + v2) \
             .collectAsMap()
         line_count = word_freqs.pop(SENT_TAG)
-        #word_freqs = list(sorted(word_freqs.items(), key=lambda x: x[1], reverse=True))
+        # word_freqs = list(sorted(word_freqs.items(), key=lambda x: x[1], reverse=True))
 
         # char freqs
         char_freqs = (spark.sparkContext.parallelize(word_freqs.items())
-             .flatMap(lambda r: [(ch, r[1]) for ch in r[0]])
-             .reduceByKey(lambda a, b: a + b)
-            .collectAsMap())
+                      .flatMap(lambda r: [(ch, r[1]) for ch in r[0]])
+                      .reduceByKey(lambda a, b: a + b)
+                      .collectAsMap())
 
         return word_freqs, char_freqs, line_count
 
@@ -70,6 +61,7 @@ def word_counts(paths: List[Path], dedup=True, spark=None) \
         if own_spark:
             log.info(f"Stopping spark session")
             spark.stop()
+
 
 def write_stats(stats: Dict[str, int], out, **meta):
     stats = sorted(stats.items(), key=lambda x: x[1], reverse=True)
@@ -84,6 +76,7 @@ def write_stats(stats: Dict[str, int], out, **meta):
     for term, freq in stats:
         out.write(f'{term}\t{freq}\n')
     log.info(f"Wrote {out}")
+
 
 def main(args=None):
     args = args or parse_args()
@@ -110,7 +103,7 @@ def parse_args():
                    help='Do not deduplicate. ')
     args = p.parse_args()
     assert args.word_freqs or args.char_freqs, \
-            'At least one of --word_freqs --char_freqs paths be given to write the stats'
+        'At least one of --word_freqs --char_freqs paths be given to write the stats'
     return args
 
 

@@ -13,7 +13,8 @@ import numpy as np
 from tqdm import tqdm
 
 from nlcodec import log, BPEScheme, Type, Level
-from nlcodec.bpe import Bigram, LnNode, max_RSS
+from nlcodec.bpe import Bigram, LnNode
+from nlcodec.utils import max_RSS
 
 NDArray = np.ndarray
 

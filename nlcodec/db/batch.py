@@ -191,16 +191,12 @@ class BatchIterable(Iterable[Batch]):
 
     # This should have been called as Dataset
     def __init__(self, data_path: Path, batch_size: int, batch_meta: BatchMeta,
-                 sort_desc: bool = False, batch_first: bool = True, shuffle: bool = False,
-                 sort_by: str = None, raw_path: Tuple[Path] = None, **kwargs):
+                 sort_desc: bool = False, batch_first: bool = True, sort_by: str = None):
         """
         Iterator for reading training data in batches
         :param data_path: path to TSV file
         :param batch_size: number of tokens on the target size per batch
-        :param raw_path: (src, seqs) paths for loading the sentences (optional); use it for validation
-               required: keep_mem=true, shuffle=False, sort_by=None
-        :param keep_in_mem: keep the dataset in-memory
-        :param sort_desc: should the batch be sorted by src sequence len (useful for RNN api)
+        :param sort_desc: should the mini batch be sorted by sequence len (useful for RNN api)
         """
         self.batch_meta = batch_meta
         self.sort_desc = sort_desc
@@ -208,7 +204,7 @@ class BatchIterable(Iterable[Batch]):
         self.batch_first = batch_first
         self.sort_by = sort_by
         self.data_path = data_path
-        assert sort_by in (None, 'eq_len_rand_batch')
+        assert sort_by in (None, 'eq_len_rand_batch', 'random')
         if not isinstance(data_path, Path):
             data_path = Path(data_path)
 
@@ -220,12 +216,6 @@ class BatchIterable(Iterable[Batch]):
         else:
             raise Exception(f'Invalid State: {data_path} is should be a file or dir.')
 
-        if raw_path:  # for logging and validation BLEU
-            # Only narrower use case is supported
-            assert not shuffle
-            assert not sort_by
-            assert len(raw_path) == 2, 'both src and tgt should be given'
-            log.warning("Fixme: raw_path feature NOT supported")
         log.info(f'Batch Size = {batch_size} toks, sort_by={sort_by}')
 
     def read_all(self):

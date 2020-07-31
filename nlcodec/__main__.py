@@ -85,7 +85,7 @@ def main():
         assert args.get('level'), 'argument --level is required for "learn" task'
         import time
         from datetime import timedelta
-        from nlcodec.bpe import max_RSS
+        from nlcodec.utils import max_RSS
         st = time.time()
         st_mem = max_RSS()[1]
         learn_vocab(**args)

@@ -468,10 +468,12 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_bpe_subword_sub_optimal_splits_for_regularization">5. BPE Subword sub optimal splits for regularization</a></li>
 <li><a href="#_scaling_for_big_datasets_with_pyspark">6. Scaling for Big data(sets) with PySpark</a>
 <ul class="sectlevel2">
-<li><a href="#_cli_example">6.1. CLI example</a></li>
-<li><a href="#_python_api_example">6.2. Python API example</a></li>
+<li><a href="#_python_api_example">6.1. Python API example</a></li>
 </ul>
 </li>
+<li><a href="#_database">7. Database</a></li>
+<li><a href="#_batch">8. Batch</a></li>
+<li><a href="#_bitextdb">9. <code>bitextdb</code></a></li>
 <li><a href="#_acknowledgements">Acknowledgements</a></li>
 </ul>
 </div>
@@ -663,21 +665,41 @@ some_type.get_permutations(name=<span style="color:#069">False</span>)</code></p
 <h2 id="_scaling_for_big_datasets_with_pyspark">6. Scaling for Big data(sets) with PySpark</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>For larger datasets, you may take advantage of PySpark to compute term-frequencies on a separate step.
-The precomputed term frequencies can be specified to <code>nlcodec learn -tfs</code> i.e. by setting <code>-tfs</code> flag.</p>
+<p>For larger datasets, you may take advantage of PySpark.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+Install PySpark using <code>pip install pyspark</code>
+</td>
+</tr>
+</table>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="bash">python -m nlcodec.learnpro
+ .... (same as &quot;python -m nlcodec learn&quot; sub command but with these extra otions: )
+  -spark SPARK_MASTER, --spark-master SPARK_MASTER
+                        Spark master (default: local[*])
+  -dm DRIVER_MEM, --driver-mem DRIVER_MEM
+                        Spark driver memory (default: 4g)
+  -dd, --dedup          Deduplicate the sentences: use only unique sequences
+                        (default: True)
+  -ndd, --no-dedup      Do not deduplicate. (default: False)
+
+$ python -m nlcodec.learnpro -i train.eng.tok train.kan.tok -l bpe -vs 8000  -m ~/tmp/bpe.8k.model
+
+# It created, two intermediate files
+~/tmp/bpe.8k.charfreq.gz
+~/Users/tg/tmp/bpe.8k.wordfreq.gz</code></pre>
+</div>
 </div>
 <div class="paragraph">
-<p>To compute term frequencies</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>Install PySpark using <code>pip install pyspark</code></p>
-</li>
-<li>
-<p>Compute term frequencies</p>
-</li>
-</ul>
+<p>To compute term-frequencies on a separate step:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -699,19 +721,8 @@ optional arguments:
   -ndd, --no-dedup      Do not deduplicate. (default: False)</code></pre>
 </div>
 </div>
-<div class="sect2">
-<h3 id="_cli_example">6.1. CLI example</h3>
-<div class="listingblock">
-<div class="content">
-<pre class="CodeRay highlight"><code data-lang="bash"># use these environment vars
-export SPARK_DRIVER_MEM=&quot;4g&quot;
-export SPARK_MATSER=&quot;local[*]&quot;   # all CPU cores of local node
-python -m nlcodec.term_freq -dd -wf words.tsv -cf chars.tsv \
-    -i ~/work/datasets/wmt/data/*-*/*.en.tok</code></pre>
-</div>
-</div>
 <div class="paragraph">
-<p><code>words.tsv</code> and <code>chars.tsv</code> have the word  and character frequencies respectively.</p>
+<p>And, then learn vocabulary from extracted frequencies. Example:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -728,9 +739,8 @@ python -m nlcodec learn -i words.tsv -tfs -l bpe -vs 8000 -m bpe.model
 python -m nlcodec learn -i words.tsv -tfs -l bpe -vs 64000 -m bpe.model -cv 0.99995 -mce 100</code></pre>
 </div>
 </div>
-</div>
 <div class="sect2">
-<h3 id="_python_api_example">6.2. Python API example</h3>
+<h3 id="_python_api_example">6.1. Python API example</h3>
 <div class="listingblock">
 <div class="content">
 <pre class="CodeRay highlight"><code data-lang="python"><span style="color:#080;font-weight:bold">from</span> <span style="color:#B44;font-weight:bold">typing</span> <span style="color:#080;font-weight:bold">import</span> <span style="color:#B44;font-weight:bold">List</span>
@@ -783,6 +793,155 @@ os.environ[<span style="background-color:hsla(0,100%,50%,0.05)"><span style="col
 </div>
 </div>
 </div>
+<div class="sect1">
+<h2 id="_database">7. Database</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>nlcodec.db.core</code> provides <code>Db</code> and <code>MultipartDb</code> which are
+great for optimized storage of unequal length sequences (which are prevalent in NLP/NMT).</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p><code>MultipartDb</code> divides large datasets into parks; so we can load and unload parts to avoid OOM or paging to slower disks.</p>
+</li>
+<li>
+<p>It works nicely with pyspark partitions</p>
+</li>
+<li>
+<p>Dynamically figures out the right inetegr size (1, 2, 4, 8 bytes) to reduce memory</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>Sorry, didnt get enough time to docs to match with all the good stuff under-the-hood;
+please look at <code>test_db.py</code> and <code>test_db_batch.py</code> for example usecases. Here are some:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="python"><span style="color:#080;font-weight:bold">from</span> <span style="color:#B44;font-weight:bold">nlcodec.db.core</span> <span style="color:#080;font-weight:bold">import</span> <span style="color:#B44;font-weight:bold">Db</span>, <span style="color:#B44;font-weight:bold">MultipartDb</span>
+<span style="color:#080;font-weight:bold">from</span> <span style="color:#B44;font-weight:bold">nlcodec</span> <span style="color:#080;font-weight:bold">import</span> <span style="color:#B44;font-weight:bold">spark</span>
+<span style="color:#080;font-weight:bold">import</span> <span style="color:#B44;font-weight:bold">numpy</span> <span style="color:#080;font-weight:bold">as</span> np
+<span style="color:#080;font-weight:bold">import</span> <span style="color:#B44;font-weight:bold">random</span>
+<span style="color:#080;font-weight:bold">from</span> <span style="color:#B44;font-weight:bold">pathlib</span> <span style="color:#080;font-weight:bold">import</span> <span style="color:#B44;font-weight:bold">Path</span>
+<span style="color:#080;font-weight:bold">import</span> <span style="color:#B44;font-weight:bold">shutil</span>
+
+<span style="color:#080;font-weight:bold">def</span> <span style="color:#06B;font-weight:bold">get_data</span>(n_recs, vocab_size):
+    <span style="color:#080;font-weight:bold">for</span> i <span style="color:#080;font-weight:bold">in</span> <span style="color:#369;font-weight:bold">range</span>(n_recs):
+        _len = np.random.randint(<span style="color:#00D">4</span>, <span style="color:#00D">40</span>)
+        x = np.random.randint(<span style="color:#00D">0</span>, vocab_size, _len)
+        y = np.random.randint(<span style="color:#00D">0</span>, vocab_size, _len + random.randint(<span style="color:#00D">0</span>, <span style="color:#00D">5</span>))
+        <span style="color:#080;font-weight:bold">yield</span> x, y
+
+<span style="color:#080;font-weight:bold">def</span> <span style="color:#06B;font-weight:bold">test_db</span>():
+    recs = <span style="color:#369;font-weight:bold">list</span>(get_data(n_recs=<span style="color:#00D">20</span>_000, vocab_size=<span style="color:#00D">32</span>_000))
+    db = Db.create(recs=recs, field_names=[<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">'</span><span style="color:#D20">x</span><span style="color:#710">'</span></span>, <span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">'</span><span style="color:#D20">y</span><span style="color:#710">'</span></span>])
+    <span style="color:#080;font-weight:bold">assert</span> <span style="color:#369;font-weight:bold">len</span>(db) == <span style="color:#369;font-weight:bold">len</span>(recs)
+    <span style="color:#080;font-weight:bold">for</span> (x, y), rec <span style="color:#080;font-weight:bold">in</span> <span style="color:#369;font-weight:bold">zip</span>(recs, db):
+        <span style="color:#080;font-weight:bold">assert</span> np.array_equal(rec.x, x)
+        <span style="color:#080;font-weight:bold">assert</span> np.array_equal(rec.y, y)
+
+<span style="color:#080;font-weight:bold">def</span> <span style="color:#06B;font-weight:bold">test_large_db</span>():
+    n_parts = <span style="color:#00D">20</span>
+    total = <span style="color:#00D">1</span>_000_000  <span style="color:#777"># lines  can go upto 500M</span>
+    vocab_size = <span style="color:#00D">64</span>_000
+
+    path = Path(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">'</span><span style="color:#D20">tmp.test.multipart.largedb</span><span style="color:#710">'</span></span>)
+    <span style="color:#080;font-weight:bold">try</span>:
+        db = MultipartDb.create(path=path, recs=get_data(total, vocab_size), has_id=<span style="color:#069">False</span>,
+                                field_names=[<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">'</span><span style="color:#D20">x</span><span style="color:#710">'</span></span>, <span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">'</span><span style="color:#D20">y</span><span style="color:#710">'</span></span>], part_size=total // n_parts,
+                                overwrite=<span style="color:#069">True</span>)
+        size = <span style="color:#369;font-weight:bold">sum</span>(f.stat().st_size <span style="color:#080;font-weight:bold">for</span> f <span style="color:#080;font-weight:bold">in</span> path.glob(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">'</span><span style="color:#D20">**/*</span><span style="color:#710">'</span></span>) <span style="color:#080;font-weight:bold">if</span> f.is_file())
+        print(f<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">'</span><span style="color:#D20">{len(db)} rows; {size:,} bytes</span><span style="color:#710">'</span></span>)
+    <span style="color:#080;font-weight:bold">finally</span>:
+        shutil.rmtree(path)
+
+
+<span style="color:#080;font-weight:bold">def</span> <span style="color:#06B;font-weight:bold">test_spark_write</span>():
+    <span style="color:#080;font-weight:bold">try</span>:
+        <span style="color:#080;font-weight:bold">import</span> <span style="color:#B44;font-weight:bold">pyspark</span>
+    <span style="color:#080;font-weight:bold">except</span> <span style="color:#C00;font-weight:bold">ImportError</span>:
+        log.warning(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">&quot;</span><span style="color:#D20">pyspark not found; skipping this test</span><span style="color:#710">&quot;</span></span>)
+        <span style="color:#080;font-weight:bold">return</span>
+    total = <span style="color:#00D">100</span>_000
+    vocab = <span style="color:#00D">32</span>_000
+    n_parts = <span style="color:#00D">20</span>
+    recs = get_data(n_recs=total, vocab_size=vocab)
+    path = Path(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">'</span><span style="color:#D20">tmp.multipart.spark.db</span><span style="color:#710">'</span></span>)
+    <span style="color:#080;font-weight:bold">try</span>:
+        <span style="color:#080;font-weight:bold">with</span> spark.session() <span style="color:#080;font-weight:bold">as</span> session:
+            rdd = session.sparkContext.parallelize(<span style="color:#369;font-weight:bold">enumerate</span>(recs))
+            db = spark.rdd_as_db(rdd=rdd, db_path=path, field_names=[<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">'</span><span style="color:#D20">x</span><span style="color:#710">'</span></span>, <span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">'</span><span style="color:#D20">y</span><span style="color:#710">'</span></span>],
+                                 max_parts=n_parts * <span style="color:#00D">10</span>,  overwrite=<span style="color:#069">True</span>)
+        <span style="color:#080;font-weight:bold">assert</span> <span style="color:#369;font-weight:bold">len</span>(db) == total
+    <span style="color:#080;font-weight:bold">finally</span>:
+            shutil.rmtree(path)</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_batch">8. Batch</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>nlcodec.db.batch</code> offers <code>Batch</code> and <code>BatchIterable</code> that are useful for interacting with DBs.
+They are designed for NMT usecase for now, but (I believe, it) can be easily adapted to others.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_bitextdb">9. <code>bitextdb</code></h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This is a CLI utility for encoding parallel text files using nlocdec and storing them in MultipartDb.
+This works on top of <code>pyspark</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>$ python -m nlcodec.bitextdb -h
+usage: bitextdb.py [-h] -sm PATH [-tm PATH] -st PATH -tt PATH -db PATH [-np N]
+                   [-sn SRC_COL] [-tn TGT_COL] [-sl SRC_LEN] [-tl TGT_LEN]
+                   [--truncate | --no-truncate] [-spark SPARK_MASTER]
+                   [-dm DRIVER_MEM]
+
+Encodes bitext nlcdec and stores them in db, using pyspark backend.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -sm PATH, --src-model PATH
+                        source model (default: None)
+  -tm PATH, --tgt-model PATH
+                        target model; default=same as src-model (default:
+                        None)
+  -st PATH, --src-text PATH
+                        source text (default: None)
+  -tt PATH, --tgt-text PATH
+                        target text (default: None)
+  -db PATH, --db PATH   Path to store db (default: None)
+  -np N, --num-parts N  A value greater than 0 forces the db to have these
+                        many parts (default: 0)
+  -sn SRC_COL, --src-col SRC_COL
+                        source column name (default: x)
+  -tn TGT_COL, --tgt-col TGT_COL
+                        target column name (default: y)
+  -sl SRC_LEN, --src-len SRC_LEN
+                        source length max (default: 256)
+  -tl TGT_LEN, --tgt-len TGT_LEN
+                        target length max (default: 256)
+  --truncate            truncate longer sentences (default: True)
+  --no-truncate         drop longer sentences (default: True)
+  -spark SPARK_MASTER, --spark_master SPARK_MASTER
+                        Use Spark master (default: local[*])
+  -dm DRIVER_MEM, --driver_mem DRIVER_MEM
+                        Memory for spark driver (default: 4g)
+
+
+$ python -m nlcodec.bitextdb -db ~/tmp/nldb-02 -sm ~/tmp/bpe.8k.model \
+  -st train.kan.tok -tt train.eng.tok --num-parts 20</pre>
+</div>
+</div>
+</div>
+</div>
 <h1 id="_acknowledgements" class="sect0">Acknowledgements</h1>
 <div class="openblock partintro">
 <div class="content">
@@ -797,7 +956,7 @@ os.environ[<span style="background-color:hsla(0,100%,50%,0.05)"><span style="col
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2020-07-07 20:20:49 -0700
+Last updated 2020-07-31 08:20:44 -0700
 </div>
 </div>
 </body>

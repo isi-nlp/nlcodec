@@ -3,40 +3,20 @@
 # Author: Thamme Gowda [tg (at) isi (dot) edu] 
 # Created: 2019-10-25
 
-from typing import List, Dict, Tuple, Union, Iterator, Set
 import collections as coll
-import resource
-import sys
 import copy
-from tqdm import tqdm
 import time
+from typing import List, Dict, Tuple, Union, Iterator, Set
 
-from nlcodec import log
+from nlcodec import log, DEF_MIN_CO_EV
 from nlcodec.codec import Type, Level, Reseved
 from nlcodec.dstruct import LnNode, MaxHeap
-from nlcodec.utils import filter_types_coverage
+from nlcodec.utils import max_RSS
+from tqdm import tqdm
+
 Codes = Dict[int, Tuple[int, ...]]
 Seq = List[int]
 Bigram = Tuple[int, int]
-
-from nlcodec import DEF_CHAR_COVERAGE, DEF_WORD_MIN_FREQ, DEF_MIN_CO_EV
-
-def max_RSS(who=resource.RUSAGE_SELF) -> Tuple[int, str]:
-    """Gets memory usage of current process, maximum so far.
-    Maximum so far, since the system call API doesnt provide "current"
-    :returns (int, str)
-       int is a value from getrusage().ru_maxrss
-       str is human friendly value (best attempt to add right units)
-    """
-    mem = resource.getrusage(who).ru_maxrss
-    h_mem = mem
-    if 'darwin' in sys.platform:  # "man getrusage 2" says we get bytes
-        h_mem /= 10 ** 3  # bytes to kilo
-    unit = 'KB'
-    if h_mem >= 10 ** 3:
-        h_mem /= 10 ** 3  # kilo to mega
-        unit = 'MB'
-    return mem, f'{int(h_mem)}{unit}'
 
 
 class BPELearn:
@@ -293,7 +273,7 @@ class BPELearn:
         rev_idx: Dict[str, int] = {word.name: word.idx for word in vocab}
         assert len(rev_idx) == len(vocab)  # one to one map
         assert vocab_size > len(vocab), f'vocab_size={vocab_size} is too small;' \
-            f' found {len(vocab)} in the init vocab! Set a value larger than {len(vocab)}'
+                                        f' found {len(vocab)} in the init vocab! Set a value larger than {len(vocab)}'
 
         seqs_freqs = cls._make_idxs(rev_idx, term_freqs)
         learner = BPELearn(seqs_freqs, vocab=vocab)
@@ -305,7 +285,7 @@ class BPELearn:
     @classmethod
     def learn_subwords(cls, term_freqs: Dict[str, int], vocab_size: int,
                        min_co_evidence: int = DEF_MIN_CO_EV,
-                      init_vocab_factory=None) -> List[Type]:
+                       init_vocab_factory=None) -> List[Type]:
         """
         :param term_freqs:
         :param vocab_size: final vocab size: reserved + chars + user_specified  + merges;

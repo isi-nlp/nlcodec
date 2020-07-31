@@ -39,5 +39,5 @@ setup(
             'nlcodec-freq=nlcodec.term_freq:main'
         ],
     },
-    install_requires=['tqdm']
+    install_requires=['tqdm', 'numpy']
 )

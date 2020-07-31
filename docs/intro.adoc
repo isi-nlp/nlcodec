@@ -159,14 +159,31 @@ some_type.get_permutations(name=False)
 
 == Scaling for Big data(sets) with PySpark
 
-For larger datasets, you may take advantage of PySpark to compute term-frequencies on a separate step.
-The precomputed term frequencies can be specified to `nlcodec learn -tfs` i.e. by setting `-tfs` flag.
+For larger datasets, you may take advantage of PySpark.
 
-To compute term frequencies
+NOTE: Install PySpark using `pip install pyspark`
 
-- Install PySpark using `pip install pyspark`
-- Compute term frequencies
+[source,bash]
+----
+python -m nlcodec.learnpro
+ .... (same as "python -m nlcodec learn" sub command but with these extra otions: )
+  -spark SPARK_MASTER, --spark-master SPARK_MASTER
+                        Spark master (default: local[*])
+  -dm DRIVER_MEM, --driver-mem DRIVER_MEM
+                        Spark driver memory (default: 4g)
+  -dd, --dedup          Deduplicate the sentences: use only unique sequences
+                        (default: True)
+  -ndd, --no-dedup      Do not deduplicate. (default: False)
 
+$ python -m nlcodec.learnpro -i train.eng.tok train.kan.tok -l bpe -vs 8000  -m ~/tmp/bpe.8k.model
+
+# It created, two intermediate files
+~/tmp/bpe.8k.charfreq.gz
+~/Users/tg/tmp/bpe.8k.wordfreq.gz
+----
+
+
+To compute term-frequencies on a separate step:
 [source,bash]
 ----
 $ python -m nlcodec.term_freq -h
@@ -188,18 +205,7 @@ optional arguments:
 
 ----
 
-=== CLI example
-
-[source,bash]
-----
-# use these environment vars
-export SPARK_DRIVER_MEM="4g"
-export SPARK_MATSER="local[*]"   # all CPU cores of local node
-python -m nlcodec.term_freq -dd -wf words.tsv -cf chars.tsv \
-    -i ~/work/datasets/wmt/data/*-*/*.en.tok
-----
-
-`words.tsv` and `chars.tsv` have the word  and character frequencies respectively.
+And, then learn vocabulary from extracted frequencies. Example:
 [source,bash]
 ----
 # word vocab of 32K
@@ -263,9 +269,3 @@ import os
 os.environ["SPARK_DRIVER_MEM"]="4g"
 os.environ["SPARK_MATSER"]="local[*]"
 ----
-
-= Acknowledgements
-
-Author: https://twitter.com/thammegowda[Thamme Gowda]
-
-This work was done at USC Information Sciences Institute as part the general machine translation research.

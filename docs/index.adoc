@@ -15,3 +15,11 @@ Thamme Gowda @ USC Information Sciences Institute, Natural Language Group
 
 include::intro.adoc[]
 
+include::db-n-batch.adoc[]
+
+
+= Acknowledgements
+
+Author: https://twitter.com/thammegowda[Thamme Gowda]
+
+This work was done at USC Information Sciences Institute as part the general machine translation research.

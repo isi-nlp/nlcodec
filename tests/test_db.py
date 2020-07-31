@@ -3,7 +3,8 @@
 # Author: Thamme Gowda [tg (at) isi (dot) edu] 
 # Created: 7/19/20
 
-from nlcodec.db.core import Db, MultipartDb, best_dtype
+from nlcodec.db.core import Db, MultipartDb, best_dtype, log
+from nlcodec import spark
 import numpy as np
 import random
 from pathlib import Path
@@ -108,34 +109,19 @@ def test_spark_write():
     try:
         import pyspark
     except ImportError:
-        print("pyspark not found; skipping this test")
+        log.warning("pyspark not found; skipping this test")
         return
     total = 100_000
     vocab = 32_000
     n_parts = 20
     recs = get_data(n_recs=total, vocab_size=vocab)
-
-    from pyspark.sql import SparkSession
-    spark = SparkSession.builder \
-        .appName("NlCodecDb test") \
-        .master(os.environ.get("SPARK_MASTER", "local[*]")) \
-        .config("spark.driver.memory", os.environ.get("SPARK_DRIVER_MEM", "4g")) \
-        .getOrCreate()
     path = Path('tmp.multipart.spark.db')
     try:
-        rdd = (spark.sparkContext
-               .parallelize(enumerate(recs))
-               .repartition(n_parts)
-               )
-        bd = MultipartDb.Writer(path, field_names=['x', 'y'], max_parts=n_parts * 10, overwrite=True)
-        rdd.mapPartitionsWithIndex(bd).count()
-        bd.close()
-        db = MultipartDb.load(path)
+        with spark.session() as session:
+            rdd = session.sparkContext.parallelize(enumerate(recs))
+            db = spark.rdd_as_db(rdd=rdd, db_path=path, field_names=['x', 'y'],
+                                 max_parts=n_parts * 10,  overwrite=True)
         assert len(db) == total
-
     finally:
-        try:
             shutil.rmtree(path)
-        finally:
-            spark.stop()
 
