@@ -274,7 +274,7 @@ class MultipartDb:
         return cls.load(path=path)
 
     @classmethod
-    def load(cls, path, rec_type=None) -> 'MultipartDb':
+    def load(cls, path, rec_type=None, keep_in_mem=False) -> 'MultipartDb':
         path = as_path(path)
         assert path.is_dir()
         flag_file = path / '_SUCCESS'
@@ -289,20 +289,27 @@ class MultipartDb:
             rec_counts.append(stats['count'])
         field_names = meta['field_names']
         rec_type = rec_type or namedtuple('RecType', field_names)
-        return cls(parts=part_files, rec_counts=rec_counts, rec_type=rec_type)
+        return cls(parts=part_files, rec_counts=rec_counts, rec_type=rec_type,
+                   keep_in_mem=keep_in_mem)
 
-    def __init__(self, parts: List[Path], rec_counts: List[int], rec_type):
+    def __init__(self, parts: List[Path], rec_counts: List[int], rec_type, keep_in_mem=False):
         self.part_paths = parts
         self.rec_counts = rec_counts
         self._len = sum(rec_counts)
         self.rec_type = rec_type
+        self.keep_in_mem = keep_in_mem  # lazily loads during the read
+        if keep_in_mem:
+            self.mem = [Db.load(p, rec_type=rec_type) for p in parts]
 
     def __len__(self):
         return self._len
 
     def __iter__(self):
-        for path in self.part_paths:
-            part = Db.load(path, rec_type=self.rec_type)
+        for idx, path in enumerate(self.part_paths):
+            if self.keep_in_mem:
+                part = self.mem[idx]
+            else:
+                part = Db.load(part)
             yield from part
 
     def make_eq_len_ran_batches(self, length_field, batch_size) -> Iterator[List]:
