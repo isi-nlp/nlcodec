@@ -803,19 +803,18 @@ great for optimized storage of unequal length sequences (which are prevalent in 
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p><code>MultipartDb</code> divides large datasets into parks; so we can load and unload parts to avoid OOM or paging to slower disks.</p>
+<p><code>MultipartDb</code> divides large datasets into parts; so we can load and unload parts to avoid OOM or paging to slower disks.</p>
 </li>
 <li>
 <p>It works nicely with pyspark partitions</p>
 </li>
 <li>
-<p>Dynamically figures out the right inetegr size (1, 2, 4, 8 bytes) to reduce memory</p>
+<p>Dynamically figures out the right integer size (1, 2, 4, 8 bytes) to reduce memory</p>
 </li>
 </ol>
 </div>
 <div class="paragraph">
-<p>Sorry, didnt get enough time to docs to match with all the good stuff under-the-hood;
-please look at <code>test_db.py</code> and <code>test_db_batch.py</code> for example usecases. Here are some:</p>
+<p>Please look at <code>test_db.py</code> and <code>test_db_batch.py</code> for example use cases. Here are some:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -886,6 +885,28 @@ please look at <code>test_db.py</code> and <code>test_db_batch.py</code> for exa
 <div class="paragraph">
 <p><code>nlcodec.db.batch</code> offers <code>Batch</code> and <code>BatchIterable</code> that are useful for interacting with DBs.
 They are designed for NMT usecase for now, but (I believe, it) can be easily adapted to others.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="python"><span style="color:#080;font-weight:bold">def</span> <span style="color:#06B;font-weight:bold">test_multipart_db_batch</span>():
+    path = Path(<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">'</span><span style="color:#D20">tmp.test.multidb.batch</span><span style="color:#710">'</span></span>)
+
+    <span style="color:#080;font-weight:bold">if</span> <span style="color:#080;font-weight:bold">not</span> path.exists():
+        n_recs = <span style="color:#00D">100</span>_000
+        recs = <span style="color:#369;font-weight:bold">list</span>(get_data(n_recs=n_recs, vocab_size=<span style="color:#00D">32</span>_000))
+        MultipartDb.create(path=path, recs=recs, field_names=[<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">'</span><span style="color:#D20">x</span><span style="color:#710">'</span></span>, <span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">'</span><span style="color:#D20">y</span><span style="color:#710">'</span></span>], part_size=n_recs//<span style="color:#00D">10</span>)
+    <span style="color:#080;font-weight:bold">try</span>:
+        batch_size = <span style="color:#00D">2000</span>
+        bs = BatchIterable(data_path=path, batch_size=batch_size, batch_meta=batch_meta,
+                           sort_by=<span style="background-color:hsla(0,100%,50%,0.05)"><span style="color:#710">'</span><span style="color:#D20">eq_len_rand_batch</span><span style="color:#710">'</span></span>)
+        count = <span style="color:#00D">0</span>
+        <span style="color:#080;font-weight:bold">for</span> b <span style="color:#080;font-weight:bold">in</span> bs:
+            count += <span style="color:#00D">1</span>
+            <span style="color:#080;font-weight:bold">assert</span> b.y_toks &lt;= batch_size
+    <span style="color:#080;font-weight:bold">finally</span>:
+        shutil.rmtree(path)
+        <span style="color:#080;font-weight:bold">pass</span></code></pre>
+</div>
 </div>
 </div>
 </div>

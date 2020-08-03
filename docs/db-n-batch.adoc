@@ -3,13 +3,12 @@
 `nlcodec.db.core` provides `Db` and `MultipartDb` which are
 great for optimized storage of unequal length sequences (which are prevalent in NLP/NMT).
 
-. `MultipartDb` divides large datasets into parks; so we can load and unload parts to avoid OOM or paging to slower disks.
+. `MultipartDb` divides large datasets into parts; so we can load and unload parts to avoid OOM or paging to slower disks.
 . It works nicely with pyspark partitions
-. Dynamically figures out the right inetegr size (1, 2, 4, 8 bytes) to reduce memory
+. Dynamically figures out the right integer size (1, 2, 4, 8 bytes) to reduce memory
 
 
-Sorry, didnt get enough time to docs to match with all the good stuff under-the-hood;
-please look at `test_db.py` and `test_db_batch.py` for example usecases. Here are some:
+Please look at `test_db.py` and `test_db_batch.py` for example use cases. Here are some:
 
 [source,python]
 ----
@@ -76,6 +75,28 @@ def test_spark_write():
 
 `nlcodec.db.batch` offers `Batch` and `BatchIterable` that are useful for interacting with DBs.
 They are designed for NMT usecase for now, but (I believe, it) can be easily adapted to others.
+
+[source,python]
+----
+def test_multipart_db_batch():
+    path = Path('tmp.test.multidb.batch')
+
+    if not path.exists():
+        n_recs = 100_000
+        recs = list(get_data(n_recs=n_recs, vocab_size=32_000))
+        MultipartDb.create(path=path, recs=recs, field_names=['x', 'y'], part_size=n_recs//10)
+    try:
+        batch_size = 2000
+        bs = BatchIterable(data_path=path, batch_size=batch_size, batch_meta=batch_meta,
+                           sort_by='eq_len_rand_batch')
+        count = 0
+        for b in bs:
+            count += 1
+            assert b.y_toks <= batch_size
+    finally:
+        shutil.rmtree(path)
+        pass
+----
 
 
 == `bitextdb`
