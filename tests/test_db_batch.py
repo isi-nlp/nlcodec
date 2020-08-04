@@ -64,7 +64,7 @@ def test_multipart_db_batch():
     try:
         batch_size = 2000
         bs = BatchIterable(data_path=path, batch_size=batch_size, batch_meta=batch_meta,
-                           sort_by='eq_len_rand_batch')
+                           sort_by='eq_len_rand_batch', keep_in_mem=True)
         count = 0
         for b in bs:
             count += 1

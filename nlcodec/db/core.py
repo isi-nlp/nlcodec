@@ -6,16 +6,17 @@
 
 import itertools
 import json
+import math
 import os
 import pickle
+import random
 import shutil
 from collections import namedtuple
 from pathlib import Path
 from typing import List, Iterator, Dict, Any, Tuple
 
 import numpy as np
-import math
-import random
+
 from nlcodec import log
 from nlcodec.utils import as_path
 
@@ -159,7 +160,7 @@ class Db:
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        state['_rec_type'] = None   # bcoz it is not pickleable
+        state['_rec_type'] = None  # bcoz it is not pickleable
         return state
 
     def save(self, path):
@@ -206,9 +207,9 @@ class Db:
     def _make_eq_len_batch_ids(self, length_field, batch_size):
         field: SeqField = self.fields[length_field]
 
-        rows = np.array([(_id, field.get_len(_id)) for _id in field.ids])   # id, len
-        np.random.shuffle(rows)    # in-place, along the first axis; for extra rand within len group
-        rows = rows[rows[:, 1].argsort()]   # sort by second col wiz len
+        rows = np.array([(_id, field.get_len(_id)) for _id in field.ids])  # id, len
+        np.random.shuffle(rows)  # in-place, along the first axis; for extra rand within len group
+        rows = rows[rows[:, 1].argsort()]  # sort by second col wiz len
         batches = []
         batch = []
         max_len = 0
@@ -289,6 +290,7 @@ class MultipartDb:
             rec_counts.append(stats['count'])
         field_names = meta['field_names']
         rec_type = rec_type or namedtuple('RecType', field_names)
+        assert len(part_files) > 0
         return cls(parts=part_files, rec_counts=rec_counts, rec_type=rec_type,
                    keep_in_mem=keep_in_mem)
 
@@ -297,7 +299,8 @@ class MultipartDb:
         self.rec_counts = rec_counts
         self._len = sum(rec_counts)
         self.rec_type = rec_type
-        self.keep_in_mem = keep_in_mem  # lazily loads during the read
+        self.keep_in_mem = keep_in_mem or len(parts) == 1  # if its only one part, just keep it
+        self.mem = [None] * len(parts)
         if keep_in_mem:
             self.mem = [Db.load(p, rec_type=rec_type) for p in parts]
 
@@ -309,15 +312,16 @@ class MultipartDb:
             if self.keep_in_mem:
                 part = self.mem[idx]
             else:
-                part = Db.load(part)
+                part = Db.load(path)
             yield from part
 
     def make_eq_len_ran_batches(self, length_field, batch_size) -> Iterator[List]:
         # shuffle the parts
-        parts = self.part_paths.copy()
-        random.shuffle(parts)
-        for path in parts:
-            part = Db.load(path, rec_type=self.rec_type)
+        buff = list(zip(self.part_paths, self.mem))
+        random.shuffle(buff)
+        for path, part in buff:
+            if part is None:
+                part = Db.load(path, rec_type=self.rec_type)
             yield from part.make_eq_len_ran_batches(length_field, batch_size=batch_size)
 
     class Writer:
