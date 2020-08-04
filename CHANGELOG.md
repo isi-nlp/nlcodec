@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0  (WIP)
+## 0.3.0
 
 - add `nlcodec-freqs` CLI to setup.py
 - log time and memory usage for `learn` task
