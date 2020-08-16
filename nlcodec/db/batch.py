@@ -5,7 +5,7 @@
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Iterator, Iterable, Optional
+from typing import List, Iterator, Iterable, Optional, Tuple, Union
 
 import numpy as np
 
@@ -190,20 +190,23 @@ def subsequent_mask(size):
 class BatchIterable(Iterable[Batch]):
 
     # This should have been called as Dataset
-    def __init__(self, data_path: Path, batch_size: int, batch_meta: BatchMeta,
+    def __init__(self, data_path: Path, batch_size: Union[int, Tuple[int, int]], batch_meta: BatchMeta,
                  sort_desc: bool = False, batch_first: bool = True, sort_by: str = None,
                  keep_in_mem=False):
         """
         Iterator for reading training data in batches
         :param data_path: path to TSV file
-        :param batch_size: number of tokens on the target size per batch
+        :param batch_size: number of tokens on the target size per batch; or (max_toks, max_sents)
         :param sort_desc: should the mini batch be sorted by sequence len (useful for RNN api)
         :param keep_in_mem: keep all parts in memory for multipartdb;
            for single part, of course, the part remains in memory.
         """
         self.batch_meta = batch_meta
         self.sort_desc = sort_desc
-        self.batch_size = batch_size
+        if isinstance(batch_size, int):
+            self.max_toks, self.max_sents  = batch_size, float('inf')
+        else:
+            self.max_toks, self.max_sents  = batch_size
         self.batch_first = batch_first
         self.sort_by = sort_by
         self.data_path = data_path
@@ -220,7 +223,7 @@ class BatchIterable(Iterable[Batch]):
         else:
             raise Exception(f'Invalid State: {data_path} is should be a file or dir.')
 
-        log.info(f'Batch Size = {batch_size} toks, sort_by={sort_by}')
+        log.info(f'Batch Size = {batch_size}, sort_by={sort_by}')
 
     def read_all(self):
         batch = []
@@ -231,12 +234,12 @@ class BatchIterable(Iterable[Batch]):
                 continue
 
             this_len = max(len(ex.x), len(ex.y))
-            if (len(batch) + 1) * max(max_len, this_len) <= self.batch_size:
+            if (len(batch) + 1) * max(max_len, this_len) <= self.max_toks and len(batch) < self.max_sents :
                 batch.append(ex)  # this one can go in
                 max_len = max(max_len, this_len)
             else:
-                if this_len > self.batch_size:
-                    raise Exception(f'Unable to make a batch of {self.batch_size} toks'
+                if this_len > self.max_toks:
+                    raise Exception(f'Unable to make a batch of {self.max_toks} toks'
                                     f' with a seq of x_len:{len(ex.x)} y_len:{len(ex.y)}')
                 # yield the current batch
                 yield Batch(batch, sort_dec=self.sort_desc, batch_first=self.batch_first,
@@ -249,7 +252,7 @@ class BatchIterable(Iterable[Batch]):
                         meta=self.batch_meta)
 
     def make_eq_len_ran_batches(self):
-        batches = self.data.make_eq_len_ran_batches('y', batch_size=self.batch_size)
+        batches = self.data.make_eq_len_ran_batches('y', max_toks=self.max_toks, max_sents=self.max_sents)
         for batch in batches:
             yield Batch(batch, sort_dec=self.sort_desc, batch_first=self.batch_first,
                         meta=self.batch_meta)
@@ -266,4 +269,4 @@ class BatchIterable(Iterable[Batch]):
 
     @property
     def num_batches(self) -> int:
-        return int(math.ceil(len(self.data) / self.batch_size))
+        return int(math.ceil(len(self.data) / self.max_toks))
