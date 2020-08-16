@@ -62,28 +62,42 @@ class SeqField:
         """
         Writer to assist creation of
         """
+        # 100MB; each int takes 28 bytes + 8 byte for ref
+        BUFFER_SIZE = 100_000_000 / (28 + 8)
 
-        def __init__(self, name):
+        def __init__(self, name, buf_size=None):
+
             self.name = name
             self.ids = {}
-            self.data = []
+            self.frozen = np.array([], dtype=np.int8)   # start with smallest type
+            self.buffer = []
             self.refs = []
             self.max_len = 0
+            self.buf_size = buf_size or self.BUFFER_SIZE
 
         def append(self, id, arr):
             assert len(arr) == 0 or isinstance(arr[0], (int, np.integer))
             self.ids[id] = len(self.refs)
             self.max_len = max(len(arr), self.max_len)
-            self.refs.append([len(self.data), len(arr)])  # start, len
-            self.data.extend(arr)
+            self.refs.append([len(self.frozen) + len(self.buffer), len(arr)])    # start, len
+            self.buffer.extend(arr)
+            if len(self.buffer) >= self.buf_size:
+                self.shrink()
             return self
 
+        def shrink(self):
+            if self.buffer:
+                dtype = best_dtype(mn=min(self.buffer), mx=max(self.buffer))
+                data = np.array(self.buffer, dtype=dtype)
+                self.frozen = np.concatenate((self.frozen, data))
+                self.buffer = []
+
         def build(self):
-            dtype = best_dtype(mn=min(self.data), mx=max(self.data))
-            refs_type = best_dtype(mn=0, mx=max(len(self.data), self.max_len))
+            self.shrink()
+            assert not self.buffer
+            refs_type = best_dtype(mn=0, mx=max(len(self.frozen), self.max_len))
             return SeqField(name=self.name, ids=self.ids,
-                            refs=np.array(self.refs, dtype=refs_type),
-                            data=np.array(self.data, dtype=dtype))
+                            refs=np.array(self.refs, dtype=refs_type), data=self.frozen)
 
     def __init__(self, name: str, ids: Dict[Any, int], refs: Array, data: Array):
         self.name = name
