@@ -218,10 +218,10 @@ class Db:
         for _id in self.ids:
             yield self[_id]
 
-    def _make_eq_len_batch_ids(self, length_field, max_toks, max_sents):
-        field: SeqField = self.fields[length_field]
+    def _make_eq_len_batch_ids(self, max_toks, max_sents):
+        fields = list(self.fields.values())
 
-        rows = np.array([(_id, field.get_len(_id)) for _id in field.ids])  # id, len
+        rows = np.array([(_id, max(field.get_len(_id) for field in fields)) for _id in self.ids])  # id, len
         np.random.shuffle(rows)  # in-place, along the first axis; for extra rand within len group
         rows = rows[rows[:, 1].argsort()]  # sort by second col wiz len
         batches = []
@@ -234,8 +234,8 @@ class Db:
 
             if (len(batch) + 1) * max(max_len, _len) > max_toks or len(batch) > max_sents:
                 if _len > max_toks:
-                    raise Exception(f'Unable to make a batch of {max-toks} toks'
-                                    f' with a seq of {length_field} len:{_len}')
+                    raise Exception(f'Unable to make a batch of {max_toks} toks'
+                                    f' with a seq of len:{_len}')
                 batches.append(np.array(batch))
                 batch = []  # new batch
                 max_len = 0
@@ -246,9 +246,9 @@ class Db:
             batches.append(np.array(batch))
         return batches
 
-    def make_eq_len_ran_batches(self, length_field, max_toks, max_sents=float('inf')):
+    def make_eq_len_ran_batches(self, max_toks, max_sents=float('inf')):
 
-        batches = self._make_eq_len_batch_ids(length_field=length_field, max_toks=max_toks, max_sents=max_sents)
+        batches = self._make_eq_len_batch_ids(max_toks=max_toks, max_sents=max_sents)
         if not batches:
             raise Exception(f'Found no data. Please check config data paths')
         log.info(f"length sorted random batches = {len(batches)}. Shuffling🔀...")
@@ -329,14 +329,14 @@ class MultipartDb:
                 part = Db.load(path)
             yield from part
 
-    def make_eq_len_ran_batches(self, length_field, max_toks, max_sents=float('inf')) -> Iterator[List]:
+    def make_eq_len_ran_batches(self, max_toks, max_sents=float('inf')) -> Iterator[List]:
         # shuffle the parts
         buff = list(zip(self.part_paths, self.mem))
         random.shuffle(buff)
         for path, part in buff:
             if part is None:
                 part = Db.load(path, rec_type=self.rec_type)
-            yield from part.make_eq_len_ran_batches(length_field, max_toks=max_toks, max_sents=max_sents)
+            yield from part.make_eq_len_ran_batches(max_toks=max_toks, max_sents=max_sents)
 
     class Writer:
 

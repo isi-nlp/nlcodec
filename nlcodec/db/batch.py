@@ -204,9 +204,9 @@ class BatchIterable(Iterable[Batch]):
         self.batch_meta = batch_meta
         self.sort_desc = sort_desc
         if isinstance(batch_size, int):
-            self.max_toks, self.max_sents  = batch_size, float('inf')
+            self.max_toks, self.max_sents = batch_size, float('inf')
         else:
-            self.max_toks, self.max_sents  = batch_size
+            self.max_toks, self.max_sents = batch_size
         self.batch_first = batch_first
         self.sort_by = sort_by
         self.data_path = data_path
@@ -252,7 +252,7 @@ class BatchIterable(Iterable[Batch]):
                         meta=self.batch_meta)
 
     def make_eq_len_ran_batches(self):
-        batches = self.data.make_eq_len_ran_batches('y', max_toks=self.max_toks, max_sents=self.max_sents)
+        batches = self.data.make_eq_len_ran_batches(max_toks=self.max_toks, max_sents=self.max_sents)
         for batch in batches:
             yield Batch(batch, sort_dec=self.sort_desc, batch_first=self.batch_first,
                         meta=self.batch_meta)
