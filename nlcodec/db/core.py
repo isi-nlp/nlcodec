@@ -11,7 +11,7 @@ import os
 import pickle
 import random
 import shutil
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 from pathlib import Path
 from typing import List, Iterator, Dict, Any, Tuple
 
@@ -218,10 +218,19 @@ class Db:
         for _id in self.ids:
             yield self[_id]
 
-    def _make_eq_len_batch_ids(self, max_toks, max_sents):
+    def _make_eq_len_batch_ids(self, max_toks, max_sents, min_len=1):
         fields = list(self.fields.values())
-
-        rows = np.array([(_id, max(field.get_len(_id) for field in fields)) for _id in self.ids])  # id, len
+        rows = []
+        skip_counter = defaultdict(int)
+        for _id in self.ids:
+            lens = tuple(field.get_len(_id) for field in fields)
+            if min(lens) < min_len:
+                skip_counter[f'len < {min_len}'] += 1
+            else:
+                rows.append((_id, max(lens)))
+        if len(skip_counter) > 0:
+            log.warning(f"Skipped :: {skip_counter}")
+        rows = np.array(rows)  # id, len
         np.random.shuffle(rows)  # in-place, along the first axis; for extra rand within len group
         rows = rows[rows[:, 1].argsort()]  # sort by second col wiz len
         batches = []
