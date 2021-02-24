@@ -338,10 +338,11 @@ class MultipartDb:
                 part = Db.load(path)
             yield from part
 
-    def make_eq_len_ran_batches(self, max_toks, max_sents=float('inf')) -> Iterator[List]:
+    def make_eq_len_ran_batches(self, max_toks, max_sents=float('inf'), join_ratio=0.0) -> Iterator[List]:
         # shuffle the parts
         buff = list(zip(self.part_paths, self.mem))
         random.shuffle(buff)
+
         for path, part in buff:
             if part is None:
                 part = Db.load(path, rec_type=self.rec_type)

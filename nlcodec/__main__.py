@@ -7,7 +7,8 @@ from typing import Dict, Any, Iterator, TextIO
 import sys
 from pathlib import Path
 
-from nlcodec import learn_vocab, load_scheme, encode, decode, __version__, __description__, log
+from nlcodec import learn_vocab, load_scheme, encode, decode, log
+from nlcodec import __version__, __description__, __epilog__
 from nlcodec import DEF_WORD_MIN_FREQ, DEF_CHAR_MIN_FREQ, DEF_CHAR_COVERAGE, DEF_MIN_CO_EV
 
 
@@ -28,7 +29,7 @@ class MyFormatter(argparse.ArgumentDefaultsHelpFormatter):
 def parse_args() -> Dict[str, Any]:
     p = argparse.ArgumentParser(formatter_class=MyFormatter, prog='nlcodec',
                                 description=__description__,
-                                epilog='Visit https://github.com/isi-nlp/nlcodec for more')
+                                epilog=__epilog__)
     p.add_argument('-v', '--version', action='version', version=f'%(prog)s {__version__}')
     p.add_argument("task", choices=['learn', 'encode', 'decode', 'estimate'],
                    help='''R|"task" or sub-command.
