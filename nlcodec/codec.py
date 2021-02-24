@@ -16,6 +16,7 @@ from nlcodec import __version__, log
 from nlcodec.dstruct import TrNode
 from nlcodec.utils import filter_types_coverage
 import os
+import sys
 import random
 
 N_CPUS = max(1, mp.cpu_count() - 1)
@@ -441,6 +442,10 @@ class BPEScheme(CharScheme):
     @classmethod
     def learn(cls, data: Iterator[str], vocab_size: int = 0, min_freq=WORD_MIN_FREQ,
               coverage=CHAR_COVERAGE, min_co_evidence=MIN_CO_EV, term_freqs=False, **kwargs) -> List[Type]:
+        if min_co_evidence > 1 and vocab_size <= 1:
+            log.info(f'Using Min-co-evidence={min_co_evidence} as stop condition. '
+                     f'Treating vocab_size as maximum size')
+            vocab_size = sys.maxsize
         assert vocab_size > 0
         assert not kwargs, f'{kwargs} args are not allowed/understood'
         if term_freqs:
