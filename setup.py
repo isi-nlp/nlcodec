@@ -35,7 +35,8 @@ setup(
     packages=find_packages(exclude=['experimental']),
     entry_points={
         'console_scripts': [
-            'nlcodec=nlcodec.__main__:main'
+            'nlcodec=nlcodec.__main__:main',
+            'nlcodec-db=nlcodec.bitextdb:main',
             'nlcodec-freq=nlcodec.term_freq:main'
         ],
     },
