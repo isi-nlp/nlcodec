@@ -99,9 +99,9 @@ def test_multipart_db_batch():
 ----
 
 
-== `bitextdb`
+== `nlcodec-db` BitextDb
 
-This is a CLI utility for encoding parallel text files using nlocdec and storing them in MultipartDb.
+`nlcodec-db` is a CLI utility for encoding parallel text files using nlocdec and storing them in MultipartDb.
 This works on top of `pyspark`.
 
 ----
@@ -143,6 +143,6 @@ optional arguments:
                         Memory for spark driver (default: 4g)
 
 
-$ python -m nlcodec.bitextdb -db ~/tmp/nldb-02 -sm ~/tmp/bpe.8k.model \
+$ nlcodec-db -db ~/tmp/nldb-02 -sm ~/tmp/bpe.8k.model \
   -st train.kan.tok -tt train.eng.tok --num-parts 20
 ----

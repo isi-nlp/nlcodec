@@ -36,6 +36,7 @@ setup(
     entry_points={
         'console_scripts': [
             'nlcodec=nlcodec.__main__:main',
+            'nlcodec-learn=nlcodec.learn:main',
             'nlcodec-db=nlcodec.bitextdb:main',
             'nlcodec-freq=nlcodec.term_freq:main'
         ],

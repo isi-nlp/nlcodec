@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1
+
+- Fix `nlcodec` CLI bug
+- Improve help messages with epilog
+
+
 ## 0.3.0
 
 - add `nlcodec-freqs` CLI to setup.py

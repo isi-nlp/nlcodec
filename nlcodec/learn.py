@@ -11,6 +11,7 @@ from nlcodec import __version__, learn_vocab
 from nlcodec.term_freq import word_counts, write_stats
 from nlcodec import utils
 from nlcodec import spark
+from nlcodec import __version__, __epilog__
 
 log.basicConfig(level=log.INFO)
 
@@ -21,9 +22,9 @@ def parse_args() -> Dict[str, Any]:
     import argparse
     # noinspection PyTypeChecker
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-                                prog='nlcodec',
+                                prog='nlcodec-learn',
                                 description=__description__,
-                                epilog='Visit https://github.com/isi-nlp/nlcodec for more')
+                                epilog=__epilog__)
     p.add_argument('-v', '--version', action='version', version=f'%(prog)s {__version__}')
 
     p.add_argument('-i', '--inp', type=Path, nargs='+',
@@ -85,7 +86,7 @@ def main():
     assert stats_file.exists()
     with utils.log_resources(name=f"learning {args['level']} vocab"):
         with utils.IO.reader(stats_file) as inp:
-            learn_vocab(inp=inp, **args)
+            learn_vocab(inp=inp, term_freqs=True, **args)
 
 
 if __name__ == '__main__':

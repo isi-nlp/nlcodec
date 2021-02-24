@@ -1,13 +1,15 @@
 == NLCodec
 A set of (low level) Natural Language Encoder-Decoders (codecs), that are useful in preprocessing stage of
 NLP pipeline. These codecs include encoding of sequences into one of the following:
+
 1. Character
 2. Word
-3. BPE based subword
+3. BPE based subwords
 
 It provides python (so embed into your app) and CLI APIs (use it as stand alone tool).
 
 There are many BPE implementations available already, but this one provides differs:
+
 1. Pure python implementation that is easy to modify anything to try new ideas.
   (other implementations require c++ expertise to modify the core)
 2. BPE model is a simple text that can be inspected with `less` or `cut`. It includes info on which pieces were put together and what frequencies etc.
@@ -22,19 +24,19 @@ Please run only one of these
 # Install from pypi (recommended)
 $ pip install nlcodec
 
-# Clone repo for development mode (preferred  mode)
+# Clone repo for development mode
 git clone https://github.com/isi-nlp/nlcodec
 cd nlcodec
 pip install --editable .
 
-# Install from github, directly
-$ pip install git+https://github.com/isi-nlp/nlcodec.git
 ----
 
-pip installer registers a cli tool named `nlcodec` in PATH
- which serves is the command line interface.
-  You can always trigger either via `python -m nlcodec` or
- `python path/to/nlcodec/__main__.py` if you wish!
+`pip` installer registers these CLI tools in your PATH:
+
+* `nlcodec`  -- CLI  for learn, encode, decode. Same as `python -m nlcodec`
++ `nlcodec-learn`  -- CLI  for learn BPE, with PySpark backend. Same as `python -m nlcodec.learn`
+* `nlcodec-db` -- CLI for bitextdb. Same as `python -m nlcodec.bitextdb`
+* `nlcodec-freq` -- CLI for extracting word and char frequencies from corpus using spark backend.
 
 
 == CLI Usage
@@ -161,11 +163,11 @@ some_type.get_permutations(name=False)
 
 For larger datasets, you may take advantage of PySpark.
 
-NOTE: Install PySpark using `pip install pyspark`
+NOTE: Please install PySpark using `pip install pyspark`
 
 [source,bash]
 ----
-python -m nlcodec.learn
+python -m nlcodec.learn  # nlcodec-learn
  .... (same as "python -m nlcodec learn" sub command but with these extra otions: )
   -spark SPARK_MASTER, --spark-master SPARK_MASTER
                         Spark master (default: local[*])
@@ -177,11 +179,11 @@ python -m nlcodec.learn
 
 $ python -m nlcodec.learn -i train.eng.tok train.kan.tok -l bpe -vs 8000  -m ~/tmp/bpe.8k.model
 
-# It created, two intermediate files
+# Tip: This also created, two intermediate files
 ~/tmp/bpe.8k.charfreq.gz
-~/Users/tg/tmp/bpe.8k.wordfreq.gz
+~/tmp/bpe.8k.wordfreq.gz
+# these can be reused again with "nlcodec learn -tfs -i <path>"
 ----
-
 
 To compute term-frequencies on a separate step:
 [source,bash]
