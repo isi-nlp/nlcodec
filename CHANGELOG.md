@@ -4,6 +4,7 @@
 
 - Fix `nlcodec` CLI bug
 - Improve help messages with epilog
+- Add `nlcodec-learn` interface for vocabulary learn over PySpark
 
 
 ## 0.3.0
