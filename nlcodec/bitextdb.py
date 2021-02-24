@@ -9,6 +9,8 @@ from nlcodec import load_scheme
 from nlcodec import spark as spark_util
 from nlcodec import utils
 
+from nlcodec import __version__,  __epilog__
+
 log.basicConfig(level=log.INFO)
 
 
@@ -35,8 +37,9 @@ def parse_args():
     import argparse
     p = argparse.ArgumentParser(description="Encodes bitext nlcdec and stores them in db, "
                                             " using pyspark backend.",
-                                formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-
+                                formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                epilog=__epilog__)
+    p.add_argument('-v', '--version', action='version', version=f'%(prog)s {__version__}')
     p.add_argument("-sm", "--src-model", metavar='PATH', type=Path, required=True, help="source model")
     p.add_argument("-tm", "--tgt-model", metavar='PATH',type=Path, required=False,
                    help="target model; default=same as src-model")

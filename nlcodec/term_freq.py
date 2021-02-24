@@ -8,8 +8,10 @@ from pathlib import Path
 from typing import List, Dict, Tuple
 
 from nlcodec import spark as spark_util
+from nlcodec import __version__,  __epilog__
 
 log.basicConfig(level=log.INFO)
+
 
 
 def word_counts(paths: List[Path], dedup=True, spark=None) \
@@ -89,7 +91,9 @@ def main(args=None):
 
 def parse_args():
     import argparse
-    p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                epilog=__epilog__)
+    p.add_argument('-v', '--version', action='version', version=f'%(prog)s {__version__}')
     p.add_argument('-i', '--inp', type=Path, nargs='+',
                    help='Input file paths')
     p.add_argument('-wf', '--word_freqs', type=argparse.FileType('w'), default=None,
