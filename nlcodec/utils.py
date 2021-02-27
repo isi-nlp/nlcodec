@@ -110,6 +110,18 @@ class IO:
     def writer(cls, path, text=True, append=False):
         return cls(path, ('a' if append else 'w') + ('t' if text else 'b'))
 
+    @classmethod
+    def read_as_stream(cls, paths: List, text=True):
+        """
+        reads all files as single stream of lines
+        :param paths:
+        :param text:
+        :return:
+        """
+        for path in paths:
+            with cls.reader(path, text=text) as stream:
+                yield from stream
+
 
 @contextmanager
 def log_resources(name=""):

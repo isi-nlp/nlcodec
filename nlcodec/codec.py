@@ -14,10 +14,11 @@ import multiprocessing as mp
 from tqdm import tqdm
 from nlcodec import __version__, log
 from nlcodec.dstruct import TrNode
-from nlcodec.utils import filter_types_coverage
+from nlcodec.utils import filter_types_coverage, IO
 import os
 import sys
 import random
+
 
 N_CPUS = max(1, mp.cpu_count() - 1)
 N_CPUS = int(os.environ.get('NLCODEC_THREADS', str(N_CPUS)))
@@ -287,6 +288,64 @@ class EncoderScheme:
         log.info(f"Total {cls} vocab size {len(vocab):,}")
         return vocab
 
+    def shrink_vocab(self, files: List[Path], min_freq: int, save_at: Optional[Path] = None) -> List[int]:
+        """
+        :param files:
+        :param min_freq:
+        :param save_at:
+        :return:
+        """
+        """"
+- Accept a list of files
+- compute term frequencies
+- Eliminate types with zero counts
+- Preserve reserved types even if they have zero counts
+- Save the resulting model at a given file path
+- Return index mapping between old and new, so we can go back to model and shrink embedding tables
+        """
+
+        freqs = coll.Counter()
+        for file in files:
+            log.info(f'Computing term frequencies from {file}')
+            with IO.reader(file) as lines:
+                freqs.update(tok for toks in self.encode_parallel(lines) for tok in  toks)
+        assert len(self.table) > max(freqs.keys())
+        removals = [False] * len(self.table)
+        for idx, typ in enumerate(self.table):
+            if typ.level == Level.reserved:
+                continue # i.e. don't remove
+            removals[idx] = freqs[idx] < min_freq  # remove if min_freq threshold not met
+
+        # now make sure to preserve all the sub pieces leading to the pieces that retain
+        for idx in range(len(self.table) - 1, -1, -1):
+            combo = self.table[idx]
+            assert combo.idx == idx
+            if not removals[combo.idx] and combo.kids: #
+                for piece in combo.kids:
+                    if removals[piece.idx]:
+                        removals[piece.idx] = False   # dont remove this piece,
+
+        mapping = []
+        for idx, (is_remove, typ) in enumerate(zip(removals, self.table)):
+            assert idx == typ.idx
+            if is_remove:
+                continue
+            mapping.append(idx)
+
+        log.info(f"Shrinking vocab tables: {len(self.table)} --> {len(mapping)} ")
+        rev_mapping = {old_idx: new_idx for new_idx, old_idx in enumerate(mapping)}
+        old_table = self.table
+        new_table = []
+        for new_idx, old_idx in enumerate(mapping):
+            assert len(new_table) == new_idx
+            old_t = old_table[old_idx]
+            new_kids = [new_table[rev_mapping[k.idx]] for k in old_t.kids] if old_t.kids else None
+            new_t = old_t.copy(idx=new_idx, kids=new_kids)
+            new_table.append(new_t)
+        if save_at:
+            Type.write_out(new_table, out=save_at)
+        return mapping
+
 
 class WordScheme(EncoderScheme):
     level = Level.word
@@ -482,7 +541,7 @@ REGISTRY = {
 
 
 def learn_vocab(inp, level, model, vocab_size, min_freq=1, term_freqs=False,
-                char_coverage=CHAR_COVERAGE, min_co_ev=MIN_CO_EV):
+                char_coverage=CHAR_COVERAGE, min_co_ev=MIN_CO_EV) -> List[Type]:
     if not min_freq or min_freq < 1:
         min_freq = WORD_MIN_FREQ if level == 'word' else CHAR_MIN_FREQ
         log.info(f"level={level} => default min_freq={min_freq}")
@@ -498,7 +557,9 @@ def learn_vocab(inp, level, model, vocab_size, min_freq=1, term_freqs=False,
         args['min_co_evidence'] = min_co_ev
     table = Scheme.learn(inp, vocab_size=vocab_size, min_freq=min_freq, term_freqs=term_freqs,
                          **args)
-    Type.write_out(table=table, out=model)
+    if model:
+        Type.write_out(table=table, out=model)
+    return table
 
 
 def load_scheme(path: Union[str, Path, TextIO]) -> EncoderScheme:
