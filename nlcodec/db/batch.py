@@ -96,7 +96,7 @@ class Batch:
         self.max_x_len = np.max(self.x_len)
 
         self.x_seqs = np.full(shape=(self._len, self.max_x_len), fill_value=self.meta.pad_idx,
-                              dtype=np.long)
+                              dtype=int)
         for i, ex in enumerate(batch):
             self.x_seqs[i, :len(ex.x)] = ex.x
         if not batch_first:  # transpose
@@ -113,7 +113,7 @@ class Batch:
             self.y_toks = np.sum(self.y_len)
             self.max_y_len = np.max(self.y_len)
             self.y_seqs = np.full(shape=(self._len, self.max_y_len), fill_value=meta.pad_idx,
-                                  dtype=np.long)
+                                  dtype=int)
             for i, ex in enumerate(batch):
                 self.y_seqs[i, :len(ex.y)] = ex.y
 
