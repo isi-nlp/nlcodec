@@ -303,12 +303,13 @@ class EncoderScheme:
 - Save the resulting model at a given file path
 - Return index mapping between old and new, so we can go back to model and shrink embedding tables
         """
-
+        from tqdm import tqdm
         freqs = coll.Counter()
         for file in files:
             log.info(f'Computing term frequencies from {file}')
             with IO.reader(file) as lines:
-                freqs.update(tok for toks in self.encode_parallel(lines) for tok in  toks)
+                for line in tqdm(lines):
+                    freqs.update(self.encode(line))
         assert len(self.table) > max(freqs.keys())
         removals = [False] * len(self.table)
         for idx, typ in enumerate(self.table):
