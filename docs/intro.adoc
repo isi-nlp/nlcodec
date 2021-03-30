@@ -5,6 +5,7 @@ NLP pipeline. These codecs include encoding of sequences into one of the followi
 1. Character
 2. Word
 3. BPE based subwords
+4. Class (for multiclass classification)
 
 It provides python (so embed into your app) and CLI APIs (use it as stand alone tool).
 
@@ -44,7 +45,7 @@ pip install --editable .
 ----
 $ python -m nlcodec -h
 usage: __main__.py [-h] [-i INP] [-o OUT] -m MODEL [-idx] [-vs VOCAB_SIZE]
-                   [-l {char,word,bpe}] [-mf MIN_FREQ]
+                   [-l {char,word,bpe,class}] [-mf MIN_FREQ]
                    {learn,encode,decode,estimate}
 
 positional arguments:

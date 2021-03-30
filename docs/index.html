@@ -499,6 +499,9 @@ NLP pipeline. These codecs include encoding of sequences into one of the followi
 <li>
 <p>BPE based subwords</p>
 </li>
+<li>
+<p>Class (for multiclass classification)</p>
+</li>
 </ol>
 </div>
 <div class="paragraph">
@@ -569,7 +572,7 @@ pip install --editable .</code></pre>
 <div class="content">
 <pre>$ python -m nlcodec -h
 usage: __main__.py [-h] [-i INP] [-o OUT] -m MODEL [-idx] [-vs VOCAB_SIZE]
-                   [-l {char,word,bpe}] [-mf MIN_FREQ]
+                   [-l {char,word,bpe,class}] [-mf MIN_FREQ]
                    {learn,encode,decode,estimate}
 
 positional arguments:
