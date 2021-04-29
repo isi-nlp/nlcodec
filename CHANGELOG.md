@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2 
+
+- Feature: shrink existing vocabulary to given dataset (useful for parent child transfer)
+
+
 ## 0.3.1
 
 - Fix `nlcodec` CLI bug
