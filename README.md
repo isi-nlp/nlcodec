@@ -41,5 +41,19 @@ Docs are available at
 - Locally at [docs/intro.adoc](docs/intro.adoc)
 
 
-# Authors 
+### Citation
+Refer to https://arxiv.org/abs/2104.00290
+
+```bibtex
+@misc{gowda2021manytoenglish,
+      title={Many-to-English Machine Translation Tools, Data, and Pretrained Models},
+      author={Thamme Gowda and Zhao Zhang and Chris A Mattmann and Jonathan May},
+      year={2021},
+      eprint={2104.00290},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL}
+}
+```
+
+### Authors 
 + [Thamme Gowda](https://twitter.com/thammegowda) 
