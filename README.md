@@ -43,15 +43,24 @@ Docs are available at
 
 ### Citation
 Refer to https://arxiv.org/abs/2104.00290
+To-appear: ACL 2021 Demos
 
 ```bibtex
-@misc{gowda2021manytoenglish,
-      title={Many-to-English Machine Translation Tools, Data, and Pretrained Models},
-      author={Thamme Gowda and Zhao Zhang and Chris A Mattmann and Jonathan May},
-      year={2021},
-      eprint={2104.00290},
-      archivePrefix={arXiv},
-      primaryClass={cs.CL}
+@article{DBLP:journals/corr/abs-2104-00290,
+  author    = {Thamme Gowda and
+               Zhao Zhang and
+               Chris A. Mattmann and
+               Jonathan May},
+  title     = {Many-to-English Machine Translation Tools, Data, and Pretrained Models},
+  journal   = {CoRR},
+  volume    = {abs/2104.00290},
+  year      = {2021},
+  url       = {https://arxiv.org/abs/2104.00290},
+  archivePrefix = {arXiv},
+  eprint    = {2104.00290},
+  timestamp = {Mon, 12 Apr 2021 16:14:56 +0200},
+  biburl    = {https://dblp.org/rec/journals/corr/abs-2104-00290.bib},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
 }
 ```
 
