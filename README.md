@@ -7,6 +7,7 @@ NLP pipeline. These codecs include encoding of sequences into one of the followi
 1. Character
 2. Word
 3. BPE based subword
+4. Class
 
 It provides python (so embed into your app) and CLI APIs (use it as stand alone tool).
 

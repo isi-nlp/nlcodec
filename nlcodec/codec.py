@@ -554,7 +554,8 @@ class ClassScheme(WordScheme):
     @classmethod
     def get_init_vocab(cls, term_freqs, *args, **kwargs):
         vocab = []
-        term_freqs = sorted(term_freqs.items(), key=lambda x: x[1], reverse=True)
+        # sort alphabetically
+        term_freqs = sorted(term_freqs.items(), key=lambda x: x[0], reverse=False)
 
         vocab += [Type(name=name, idx=idx, freq=freq, level=cls.level)
                   for idx, (name, freq) in enumerate(term_freqs, start=len(vocab))]
@@ -580,7 +581,10 @@ def learn_vocab(inp, level, model, vocab_size, min_freq=1, term_freqs=False,
     else:
         log.info(f"level={level} => user given min_freq={min_freq}")
     log.info(f"Learn Vocab for level={level} and store at {model}")
-    log.info(f"data ={inp}")
+    if isinstance(inp, list):
+        log.info(f"data ={inp[:10]} ... + ({len(inp) - 10} more items)")
+    else:
+        log.info(f"data ={inp}")
     Scheme = REGISTRY[level]
     args = {}
     if level != 'word':
