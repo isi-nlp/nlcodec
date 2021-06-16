@@ -3,7 +3,7 @@
 # Author: Thamme Gowda [tg (at) isi (dot) edu] 
 # Created: 2019-10-25
 
-__version__ = '0.3.2'
+__version__ = '0.4.0-dev'
 __description__ = """nlcodec is a collection of encoding schemes for natural language sequences. 
 nlcodec.db is a efficient storage and retrieval layer for integer sequences of varying lengths."""
 PROJECT_HOME = 'https://github.com/isi-nlp/nlcodec'

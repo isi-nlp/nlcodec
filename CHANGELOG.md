@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0-dev WIP
+
+
+
 ## 0.3.2 
 
 - Feature: shrink existing vocabulary to given dataset (useful for parent child transfer)
