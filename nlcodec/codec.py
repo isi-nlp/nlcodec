@@ -549,7 +549,7 @@ class ClassScheme(WordScheme):
         return [line.strip()]
 
     def decode_str(self, seq: List[str]) -> str:
-        self.delim.join(seq)
+        return self.delim.join(seq)
 
     @classmethod
     def get_init_vocab(cls, term_freqs, *args, **kwargs):
