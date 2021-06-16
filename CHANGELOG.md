@@ -2,6 +2,7 @@
 
 ## 0.4.0-dev WIP
 
+- Add support for `class` scheme -- for multi-class classification field
 
 
 ## 0.3.2 
