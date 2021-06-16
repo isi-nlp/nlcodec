@@ -59,10 +59,11 @@ class Reseved:
 class Level:
     reserved = -1
     char = 0
-    user = 0  # as of now,  user and char are indistinguishable; 0 means dont look inside
+    user = 0  # as of now,  user and char are indistinguishable; 0 means don't look inside
     subword = 1
     word = 2
     phrase = 3
+    clasz = 0   # 0 means dont split these tokens
 
 
 @dataclass(frozen=True)
@@ -106,7 +107,7 @@ class Type:  # Type as in word type vs token
         return Type(**args)
 
     @classmethod
-    def write_out(cls, table: List['Type'], out: Union[Path, str, TextIO]):
+    def write_out(cls, table: List['Type'], out: Union[Path, str, TextIO], **meta):
 
         if isinstance(out, Path) or isinstance(out, str):
             wrtr = open(out, 'w', encoding='utf8', errors='ignore')
@@ -115,10 +116,11 @@ class Type:  # Type as in word type vs token
 
         levels = dict(coll.Counter(v.level for v in table))
         max_level = max(levels.keys())
-        meta = dict(total=len(table), version=__version__, levels=levels, max_level=max_level,
+        header = dict(total=len(table), version=__version__, levels=levels, max_level=max_level,
                     created=str(datetime.now()))
-        meta = json.dumps(meta)
-        wrtr.write(f"#{meta}\n")
+        header.update(meta)
+        header = json.dumps(header)
+        wrtr.write(f"#{header}\n")
         for i, item in enumerate(table):
             assert i == item.idx, f'{item} expected index {i}'
             wrtr.write(item.format() + '\n')
@@ -174,22 +176,19 @@ class Type:  # Type as in word type vs token
             return [self.name if name else self.idx]
 
 
-class EncoderScheme:
+class EncoderScheme(abc.ABC):
 
-    def __init__(self, table: List[Type], validate=True, invertible=True):
+    name = ''
+
+    def __init__(self, table: List[Type], has_reserved=True, invertible=True):
         """
 
         :param table: list of `Type`s
-        :param validate: validate that reserved types are found
+        :param has_reserved: validate that reserved types are found
         :param invertible: validate that the idx->str and str->idx are invertible
         """
-        if validate:
+        if has_reserved:
             Reseved.validate(table)
-            self.unk_idx = Reseved.UNK_IDX
-        else:
-            # at least UNK should be available
-            assert table[Reseved.UNK_IDX].name == Reseved.UNK_TOK[0]
-            # TODO: reverse lookup UNK IDX based on UNK_TOK name
             self.unk_idx = Reseved.UNK_IDX
 
         self.vocab_size = len(table)
@@ -346,6 +345,9 @@ class EncoderScheme:
         if save_at:
             Type.write_out(new_table, out=save_at)
         return mapping
+
+    def save(self, out):
+        return Type.write_out(table=self.table, out=out, scheme=self.name)
 
 
 class WordScheme(EncoderScheme):
@@ -531,13 +533,43 @@ class BPEScheme(CharScheme):
             res += self.table[idx].get_stochastic_split(name=name, split_ratio=split_ratio)
         return res
 
+class ClassScheme(WordScheme):
+    """Scheme to be used for mapping labels or classes"""
+    level = Level.clasz
+    name = "class"
+    delim = ","
+    unk_idx = -1    # No unks
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, has_reserved=False, **kwargs)
+
+
+    @classmethod
+    def encode_str(cls, line: str) -> List[str]:
+        return [line.strip()]
+
+    def decode_str(self, seq: List[str]) -> str:
+        return self.delim.join(seq)
+
+    @classmethod
+    def get_init_vocab(cls, term_freqs, *args, **kwargs):
+        vocab = []
+        # sort alphabetically
+        term_freqs = sorted(term_freqs.items(), key=lambda x: x[0], reverse=False)
+
+        vocab += [Type(name=name, idx=idx, freq=freq, level=cls.level)
+                  for idx, (name, freq) in enumerate(term_freqs, start=len(vocab))]
+        log.info(f"Total {cls} vocab size {len(vocab):,}")
+        return vocab
+
 
 #########################
 REGISTRY = {
     'char': CharScheme,
     'word': WordScheme,
     'bpe': BPEScheme,
-    'subword': BPEScheme
+    'subword': BPEScheme,
+    'class': ClassScheme
 }
 
 
@@ -549,7 +581,10 @@ def learn_vocab(inp, level, model, vocab_size, min_freq=1, term_freqs=False,
     else:
         log.info(f"level={level} => user given min_freq={min_freq}")
     log.info(f"Learn Vocab for level={level} and store at {model}")
-    log.info(f"data ={inp}")
+    if isinstance(inp, list):
+        log.info(f"data ={inp[:10]} ... + ({len(inp) - 10} more items)")
+    else:
+        log.info(f"data ={inp}")
     Scheme = REGISTRY[level]
     args = {}
     if level != 'word':
@@ -559,17 +594,21 @@ def learn_vocab(inp, level, model, vocab_size, min_freq=1, term_freqs=False,
     table = Scheme.learn(inp, vocab_size=vocab_size, min_freq=min_freq, term_freqs=term_freqs,
                          **args)
     if model:
-        Type.write_out(table=table, out=model)
+        Scheme(table).save(out=model)
     return table
 
 
 def load_scheme(path: Union[str, Path, TextIO]) -> EncoderScheme:
     types, meta = Type.read_vocab(path)
     assert meta
-    max_level = meta['max_level']
-    levels = [CharScheme, BPEScheme, WordScheme]
-    assert max_level < len(levels)
-    Scheme = levels[max_level]
+    if 'scheme' in meta:
+        Scheme = REGISTRY[meta['scheme']]
+    else:
+        # backward compatibility;
+        max_level = meta['max_level']
+        levels = [CharScheme, BPEScheme, WordScheme, ClassScheme]
+        assert max_level < len(levels)
+        Scheme = levels[max_level]
     return Scheme(table=types)
 
 

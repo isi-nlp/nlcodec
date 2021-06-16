@@ -9,20 +9,23 @@ nlcodec.db is a efficient storage and retrieval layer for integer sequences of v
 PROJECT_HOME = 'https://github.com/isi-nlp/nlcodec'
 
 from pathlib import Path
+
 __epilog__ = f'Visit https://github.com/isi-nlp/nlcodec or https://isi-nlp.github.io/nlcodec/' \
              f' to learn more. You\'re currently using version {__version__} loaded ' \
              f' from {Path(__file__).parent}'
 
-
-DEF_MIN_CO_EV = 95   # recommended by Gowda and May (2020)
+DEF_MIN_CO_EV = 95  # recommended by Gowda and May (2020)
 DEF_WORD_MIN_FREQ = 1  # minimum times a word should exist to be used for word vocab
 DEF_CHAR_MIN_FREQ = 20  # minimum times a char should be seen to be included in init vocab
 DEF_CHAR_COVERAGE = 0.9995  # Credits to google/sentencepiece for this idea;
 
+import logging
+log = logging.getLogger("nlcodec")
+logging.basicConfig(
+    level=logging.INFO, datefmt='%m-%d %H:%M:%S',
+    format='[%(asctime)s] p%(process)s {%(module)s:%(lineno)d} %(levelname)s - %(message)s')
 
-import logging as log
-log.basicConfig(level=log.INFO)
-
-from nlcodec.codec import (EncoderScheme, WordScheme, CharScheme, BPEScheme, Type, Reseved, REGISTRY,
-                    learn_vocab, load_scheme, Level, encode, decode)
+from nlcodec.codec import (EncoderScheme, WordScheme, CharScheme, BPEScheme, Type, Reseved,
+                           REGISTRY,
+                           learn_vocab, load_scheme, Level, encode, decode)
 from nlcodec.dstruct import LnNode, TrNode, MaxHeap

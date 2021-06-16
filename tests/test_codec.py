@@ -60,3 +60,18 @@ def test_shrink():
         assert len(mapping) > 0
         model2 = nlc.load_scheme(en_model_file)
         assert len(model2.table) == len(mapping)
+
+
+def test_class_scheme():
+    labels = "A B C A B A A A A A B C D D C C B A A A A A A D".split()
+    args = dict(inp=labels, level='class', vocab_size=-1)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        model_file = Path(tmpdir) / 'model.tsv'
+        args['model'] = model_file
+        table = nlc.learn_vocab(**args)
+        assert len(table) == 4
+        table2, meta = nlc.Type.read_vocab(model_file)
+        assert len(table2) == len(table)
+        table_str = '\n'.join(x.format() for x in table)
+        table2_str = '\n'.join(x.format() for x in table2)
+        assert table_str == table2_str
