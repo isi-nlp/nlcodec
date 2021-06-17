@@ -14,7 +14,8 @@ import shutil
 from collections import namedtuple, defaultdict
 from pathlib import Path
 from typing import List, Iterator, Dict, Any, Tuple
-
+import copy
+import random
 import numpy as np
 
 from nlcodec import log
@@ -152,13 +153,14 @@ class SeqField:
 
 class Db:
 
-    def __init__(self, fields: List[SeqField], rec_type=None):
+    def __init__(self, fields: List[SeqField], rec_type=None, shuffle=False):
         assert all(isinstance(f, SeqField) for f in fields)
         self.field_names = [f.name for f in fields]
         self._rec_type = rec_type
         self.fields = {f.name: f for f in fields}
         self._len = len(fields[0])
         self.ids = set(fields[0].ids.keys())
+        self.shuffle = shuffle
         for fn, fd in self.fields.items():
             assert self._len == len(fd)  # all have same num of recs
             assert self.ids == set(fd.ids.keys())  # and same IDs
@@ -183,11 +185,12 @@ class Db:
             pickle.dump(self, f)
 
     @classmethod
-    def load(cls, path, rec_type=None) -> 'Db':
-        log.debug(f"Loading from {path}")
+    def load(cls, path, rec_type=None, shuffle=False) -> 'Db':
+        log.debug(f"Loading from {path}: shuffle={shuffle}")
         with open(path, 'rb') as f:
             obj = pickle.load(f)
         assert isinstance(obj, cls)
+        obj.shuffle = shuffle
         if rec_type:
             obj._rec_type = rec_type
         return obj
@@ -215,7 +218,11 @@ class Db:
         return self.RecType()(_id, *cols)
 
     def __iter__(self):
-        for _id in self.ids:
+        ids = self.ids
+        if self.shuffle:
+            ids = copy.copy(ids)
+            random.shuffle(ids)
+        for _id in ids:
             yield self[_id]
 
     def _make_eq_len_batch_ids(self, max_toks, max_sents, min_len=1):
@@ -298,7 +305,7 @@ class MultipartDb:
         return cls.load(path=path)
 
     @classmethod
-    def load(cls, path, rec_type=None, keep_in_mem=False) -> 'MultipartDb':
+    def load(cls, path, rec_type=None, keep_in_mem=False, shuffle=False) -> 'MultipartDb':
         path = as_path(path)
         assert path.is_dir()
         flag_file = path / '_SUCCESS'
@@ -312,30 +319,35 @@ class MultipartDb:
             part_files.append(part_file)
             rec_counts.append(stats['count'])
         field_names = meta['field_names']
-        rec_type = rec_type or namedtuple('RecType', field_names)
+        rec_type = rec_type or namedtuple('RecType',  ['id'] + field_names)
         assert len(part_files) > 0
         return cls(parts=part_files, rec_counts=rec_counts, rec_type=rec_type,
-                   keep_in_mem=keep_in_mem)
+                   keep_in_mem=keep_in_mem, shuffle=shuffle)
 
-    def __init__(self, parts: List[Path], rec_counts: List[int], rec_type, keep_in_mem=False):
+    def __init__(self, parts: List[Path], rec_counts: List[int], rec_type, keep_in_mem=False,
+                 shuffle=False):
         self.part_paths = parts
         self.rec_counts = rec_counts
         self._len = sum(rec_counts)
         self.rec_type = rec_type
         self.keep_in_mem = keep_in_mem or len(parts) == 1  # if its only one part, just keep it
+        self.shuffle =  shuffle
         self.mem = [None] * len(parts)
-        if keep_in_mem:
+        if self.keep_in_mem:
             self.mem = [Db.load(p, rec_type=rec_type) for p in parts]
 
     def __len__(self):
         return self._len
 
     def __iter__(self):
-        for idx, path in enumerate(self.part_paths):
+        idx_paths = list(enumerate(self.part_paths))
+        if self.shuffle:
+            random.shuffle(idx_paths)
+        for idx, path in idx_paths:
             if self.keep_in_mem:
                 part = self.mem[idx]
             else:
-                part = Db.load(path)
+                part = Db.load(path, shuffle=self.shuffle)
             yield from part
 
     def make_eq_len_ran_batches(self, max_toks, max_sents=float('inf'), join_ratio=0.0) -> Iterator[List]:
