@@ -19,7 +19,7 @@ import os
 import sys
 import random
 import functools as fn
-from nlcodec.bpe import BPELearn
+# from nlcodec.bpe import BPELearn
 
 
 N_CPUS = max(1, mp.cpu_count() - 1)
@@ -648,6 +648,7 @@ class ClassScheme(WordScheme):
 class NgramScheme(BPEScheme):
 
     def __init__(self, table:List['Type']):
+        log.info('Loading Ngram Scheme ...')
         super().__init__(table=table)
 
     def decode(self, seq:List[int]) -> str:
@@ -805,6 +806,7 @@ class SkipScheme(BPEScheme):
     hash_prime = 9973 # prime number to hash the list
     
     def __init__(self, table:List['Type']):
+        log.info('Loading Skip Scheme ...')
         super().__init__(table=table)
         self.root = self.make_vocab_prefix_trie(self.table)
         assert self.unk_idx
@@ -1050,6 +1052,7 @@ class SkipScheme(BPEScheme):
                                     kids=tok.kids))
                 return vocab
 
+            from nlcodec.bpe import BPELearn
             bpe_vocab = BPELearn.learn_subwords(term_freqs=term_freqs, 
                                             vocab_size=vocab_size,
                                             init_vocab_factory=init_vocab_factory,
@@ -1187,6 +1190,7 @@ def load_scheme(path: Union[str, Path, TextIO]) -> EncoderScheme:
         max_level = meta['max_level']
         levels = [CharScheme, BPEScheme, WordScheme, ClassScheme, NgramScheme, SkipScheme]
         assert max_level < len(levels)
+        log.info(f'Max Level for Vocab : {max_level}')
         Scheme = levels[max_level]
     return Scheme(table=types)
 
