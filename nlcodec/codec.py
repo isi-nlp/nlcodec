@@ -581,7 +581,7 @@ def learn_vocab(inp, level, model, vocab_size, min_freq=1, term_freqs=False,
     else:
         log.info(f"level={level} => user given min_freq={min_freq}")
     log.info(f"Learn Vocab for level={level} and store at {model}")
-    if isinstance(inp, list):
+    if isinstance(inp, (list, tuple)):
         log.info(f"data ={inp[:10]} ... + ({len(inp) - 10} more items)")
     else:
         log.info(f"data ={inp}")
