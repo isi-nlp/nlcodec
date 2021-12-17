@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0-dev WIP
+## 0.4.0  -- 2021-08-03
 
 - Add support for `class` scheme -- for multi-class classification field
 
