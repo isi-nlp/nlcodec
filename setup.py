@@ -1,9 +1,15 @@
-import nlcodec
+# Importing nlcodec requires other packages to be installed already . Prevents installation .
+# Adding version and description here as a hack.
+# import nlcodec
 from pathlib import Path
 
 from setuptools import setup, find_packages
 
 long_description = Path('README.md').read_text(encoding='utf-8', errors='ignore')
+
+version = '0.4.0'
+description = """nlcodec is a collection of encoding schemes for natural language sequences. 
+nlcodec.db is a efficient storage and retrieval layer for integer sequences of varying lengths."""
 
 classifiers = [  # copied from https://pypi.org/classifiers/
     'Development Status :: 5 - Production/Stable',
@@ -19,15 +25,15 @@ classifiers = [  # copied from https://pypi.org/classifiers/
 
 setup(
     name='nlcodec',
-    version=nlcodec.__version__,
-    description=nlcodec.__description__,
+    version=version,
+    description=description,
     long_description=long_description,
     long_description_content_type='text/markdown',
     license='Apache Software License 2.0',
     classifiers=classifiers,
     python_requires='>=3.7',
-    url='https://github.com/thammegowda/bpepp',
-    download_url='https://github.com/thammegowda/bpepp',
+    url='https://github.com/pegasus-lynx/nlcodec/tree/mwe_schemes',
+    download_url='https://github.com/pegassus-lynx/nlcodec/tree/mwe_schemes',
     platforms=['any'],
     author='Thamme Gowda',
     author_email='tgowdan@gmail.com',

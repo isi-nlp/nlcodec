@@ -17,6 +17,7 @@ __epilog__ = f'Visit https://github.com/isi-nlp/nlcodec or https://isi-nlp.githu
 DEF_MIN_CO_EV = 95  # recommended by Gowda and May (2020)
 DEF_WORD_MIN_FREQ = 1  # minimum times a word should exist to be used for word vocab
 DEF_CHAR_MIN_FREQ = 20  # minimum times a char should be seen to be included in init vocab
+DEF_MWE_MIN_FREQ = 100 # minimum times an mwe should appear in the corpus
 DEF_CHAR_COVERAGE = 0.9995  # Credits to google/sentencepiece for this idea;
 
 import logging
