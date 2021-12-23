@@ -11,7 +11,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, TextIO, Dict, Tuple, Union, Iterator, Optional
 import multiprocessing as mp
-from tqdm import tqdm
 from nlcodec import __version__, log
 from nlcodec.dstruct import TrNode
 from nlcodec.utils import filter_types_coverage, IO
@@ -364,6 +363,7 @@ class WordScheme(EncoderScheme):
 
     @classmethod
     def term_frequencies(cls, data: Iterator[str]) -> Tuple[Dict[str, int], int]:
+        from tqdm import tqdm
         stats = coll.Counter()
         line_count = 0
         for line in tqdm(data, mininterval=1):
