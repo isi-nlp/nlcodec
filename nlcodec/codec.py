@@ -64,6 +64,7 @@ class Level:
     word = 2
     phrase = 3
     clasz = 0   # 0 means dont split these tokens
+    byte = 0   # 0 means dont split these tokens
 
 
 @dataclass(frozen=True)
@@ -210,7 +211,6 @@ class EncoderScheme(abc.ABC):
 
     def __len__(self):
         return self.vocab_size
-
 
     @abc.abstractmethod
     def encode_str(cls, line: str) -> List[str]:
@@ -454,7 +454,6 @@ class BPEScheme(CharScheme):
         assert not root.has_data  # root node is not data node
         return root
 
-
     def encode(self, line: str, split_ratio: float = 0.) -> List[int]:
         pieces = self.encode_str(line, split_ratio=split_ratio)
         return [self.str_to_idx.get(piece, self.unk_idx) for piece in pieces]
@@ -533,6 +532,7 @@ class BPEScheme(CharScheme):
             res += self.table[idx].get_stochastic_split(name=name, split_ratio=split_ratio)
         return res
 
+
 class ClassScheme(WordScheme):
     """Scheme to be used for mapping labels or classes"""
     level = Level.clasz
@@ -563,13 +563,79 @@ class ClassScheme(WordScheme):
         return vocab
 
 
+class ByteScheme(EncoderScheme):
+    level = Level.byte
+    name = "byte"
+    """
+     using hex strings to represent bytes [0-255] => [00-ff] 
+     <s> aka BOS is 256
+     </s> aka EOS is 257
+    """
+    def __init__(self, table: List[Type]=None, encoding='utf-8', errors="replace"):
+        self.encoding = encoding
+        self.errors = errors   # very likely, model is going to generate invalid code bytes during training
+        table = table or self.get_init_vocab()
+        super().__init__(table=table, has_reserved=False)
+
+
+    @staticmethod
+    def code_to_str(code: int) -> str:
+        return f'{code:x}'
+
+    def compose_str(self, pieces: List[str]):
+        byte_arr = bytes.fromhex(''.join(pieces))
+        return str(byte_arr, encoding=self.encoding, errors=self.errors)
+
+    def encode_str(self, line: str) -> List[str]:
+        return [self.code_to_str(b) for b in str.encode(line, self.encoding)]
+
+    def decode_str(self, seq: List[str]) -> str:
+        builder = []  # string builder
+        buffer = []   # buffer of past pieces
+        for piece in seq:
+            if piece in self.str_to_idx and self.table[self.str_to_idx[piece]].is_reserved:
+                if buffer:
+                    builder.append(self.compose_str(pieces=buffer))
+                    buffer.clear()
+                builder.append(piece)
+            else:
+                buffer.append(piece)
+        if buffer:
+            builder.append(self.compose_str(pieces=buffer))
+        return ''.join(builder)
+
+    def encode(self, line: str) -> List[int]:
+        pieces = self.encode_str(line)
+        return [self.str_to_idx[piece] for piece in pieces]
+
+    def decode(self, seq: List[int]) -> str:
+        pieces = [self.idx_to_str[idx] for idx in seq]
+        return self.decode_str(pieces)
+
+    @classmethod
+    def get_init_vocab(cls, *args, **kwargs):
+        vocab = [Type(name=f'{code:x}', idx=code, freq=-1, level=cls.level) for code in range(256)]
+        for tok, _ in [Reseved.BOS_TOK, Reseved.EOS_TOK]:
+            vocab.append(Type(name=tok, idx=len(vocab), freq=-1, level=Level.reserved))
+        log.info(f"Total {cls} vocab size {len(vocab):,}")
+        return vocab
+
+
+    @classmethod
+    def learn(cls, *args, **kwargs) -> List[Type]:
+        if args or kwargs:
+            log.warning(f"Byte vocabulary does not need learning; args are ignored: {args} {kwargs}")
+        return cls.get_init_vocab()
+
+
 #########################
 REGISTRY = {
     'char': CharScheme,
     'word': WordScheme,
     'bpe': BPEScheme,
     'subword': BPEScheme,
-    'class': ClassScheme
+    'class': ClassScheme,
+    'byte': ByteScheme
 }
 
 

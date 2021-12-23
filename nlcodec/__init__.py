@@ -3,7 +3,7 @@
 # Author: Thamme Gowda [tg (at) isi (dot) edu] 
 # Created: 2019-10-25
 
-__version__ = '0.4.0'
+__version__ = '0.5'
 __description__ = """nlcodec is a collection of encoding schemes for natural language sequences. 
 nlcodec.db is a efficient storage and retrieval layer for integer sequences of varying lengths."""
 PROJECT_HOME = 'https://github.com/isi-nlp/nlcodec'
@@ -26,6 +26,6 @@ logging.basicConfig(
     format='[%(asctime)s] p%(process)s {%(module)s:%(lineno)d} %(levelname)s - %(message)s')
 
 from nlcodec.codec import (EncoderScheme, WordScheme, CharScheme, BPEScheme, Type, Reseved,
-                           REGISTRY,
+                           REGISTRY, ByteScheme,
                            learn_vocab, load_scheme, Level, encode, decode)
 from nlcodec.dstruct import LnNode, TrNode, MaxHeap

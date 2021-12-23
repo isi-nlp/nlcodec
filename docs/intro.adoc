@@ -6,6 +6,8 @@ NLP pipeline. These codecs include encoding of sequences into one of the followi
 2. Word
 3. BPE based subwords
 4. Class (for multiclass classification)
+5. Byte: Character is a Unicode codepoint (which can be higher than 255) where as bytes are [0-255]; a proxy over `utf-8` scheme
+
 
 It provides python (so embed into your app) and CLI APIs (use it as stand alone tool).
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5 -- 2021-12-23
+
+- Add `byte` scheme
+
 ## 0.4.0  -- 2021-08-03
 
 - Add support for `class` scheme -- for multi-class classification field
