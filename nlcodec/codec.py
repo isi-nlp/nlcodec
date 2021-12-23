@@ -1115,6 +1115,13 @@ def load_scheme(path: Union[str, Path, TextIO]) -> EncoderScheme:
     return Scheme(table=types)
 
 
+def get_scheme(pieces:str):
+    if pieces in REGISTRY.keys():
+        return REGISTRY[pieces]
+    return ValueError(f'Piece {pieces} not available. \
+                Choices : [ char, word, bpe, ngram, skipgram, mwe ]')
+
+
 def encode(inp: Iterator[str], scheme: EncoderScheme, indices=False) \
         -> Iterator[Union[List[str], List[int]]]:
     for line in inp:
