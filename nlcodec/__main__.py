@@ -56,7 +56,7 @@ def parse_args() -> Dict[str, Any]:
                             help='Vocabulary size. Valid only for task=learn. This is required for'
                                  ' "bpe", but optional for "word" and "char" models, specifying it'
                                  ' will trim the vocabulary at given top most frequent types.')
-    learn_args.add_argument('-l', '--level', choices=['char', 'word', 'bpe', 'class'],
+    learn_args.add_argument('-l', '--level', choices=['char', 'word', 'bpe', 'class', 'byte'],
                             help='Encoding Level; Valid only for task=learn')
     learn_args.add_argument('-mf', '--min-freq', default=None, type=int,
                             help='Minimum frequency of types for considering inclusion in vocabulary. '

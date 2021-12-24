@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import List, Any, Iterable, Dict, Tuple, Union
 import collections as coll
 from nlcodec import log
-from tqdm import tqdm
 import gzip
 import time
 from contextlib import contextmanager
@@ -21,6 +20,7 @@ def make_n_grams(sent: List[Any], n):
 
 
 def make_n_grams_all(sents: Iterable[List[Any]], n):
+    from tqdm import tqdm
     grams = coll.Counter()
     n_sent = 0
     for sent in tqdm(sents, mininterval=1, dynamic_ncols=True):
