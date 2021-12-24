@@ -1,6 +1,8 @@
 # NLCodec
+[![image](http://img.shields.io/pypi/v/nlcodec.svg)](https://pypi.python.org/pypi/nlcodec/)
+![Travis (.com)](https://img.shields.io/travis/com/isi-nlp/nlcodec?style=plastic)
 
-NOTE: The docs are available at https://isi-nlp.github.io/nlcodec
+📕 Docs:  https://isi-nlp.github.io/nlcodec
 
 A set of (low level) Natural Language Encoder-Decoders (codecs), that are useful in preprocessing stage of 
 NLP pipeline. These codecs include encoding of sequences into one of the following:
