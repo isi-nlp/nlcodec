@@ -2,6 +2,7 @@ from typing import List, TextIO, Dict, Tuple, Union, Iterator, Optional, Set
 import multiprocessing as mp
 from nlcodec import __version__, log
 import functools as fn
+import math
 
 class PMIFuncs():
 
@@ -67,7 +68,7 @@ class PMIFuncs():
     def _naive_pmi(ngram_prob:float, word_probs:List[float]) -> float:
         pmi_num = ngram_prob
         pmi_dec = fn.reduce(lambda a,b: a*b, word_probs)
-        return log(pmi_num / pmi_dec)
+        return math.log(pmi_num / pmi_dec)
 
     @classmethod
     def _get_bigram_pmis(cls, token:'Type', nterms:int, 
