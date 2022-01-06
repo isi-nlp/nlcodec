@@ -835,33 +835,36 @@ class SkipScheme(BPEScheme):
 
     @classmethod
     def decode_str(cls, seq:List[str]) -> str:
-
+        
         ordered_seq = [None]*len(seq)
         pos = 0
         skipped_pos = []
-        for tok in seq:
-            if tok == cls.skip_tok:
-                continue
-            nskips = coll.Counter(tok).get(cls.skip_char,0)
-            if nskips:
-                xtok = tok.replace(cls.skip_char, f'{cls.skip_char} ')
-                xtok = xtok.replace(cls.space_char, f'{cls.space_char} ')
-                parts = xtok.split()
-                for ix, part in enumerate(parts):
-                    if part != cls.skip_char:
-                        ordered_seq[pos+ix] = part
-                    else:
-                        skipped_pos.append(pos+ix)
-                pos += len(parts)
-            else:
-                if len(skipped_pos) != 0:
-                    cpos = skipped_pos[0]
-                    skipped_pos = skipped_pos[1:]
-                    ordered_seq[cpos] = tok
+        try:
+            for tok in seq:
+                if tok == cls.skip_tok:
+                    continue
+                nskips = coll.Counter(tok).get(cls.skip_char,0)
+                if nskips:
+                    xtok = tok.replace(cls.skip_char, f'{cls.skip_char} ')
+                    xtok = xtok.replace(cls.space_char, f'{cls.space_char} ')
+                    parts = xtok.split()
+                    for ix, part in enumerate(parts):
+                        if part != cls.skip_char:
+                            ordered_seq[pos+ix] = part
+                        else:
+                            skipped_pos.append(pos+ix)
+                    pos += len(parts)
                 else:
-                    ordered_seq[pos] = tok
-                    pos += 1
-
+                    if len(skipped_pos) != 0:
+                        cpos = skipped_pos[0]
+                        skipped_pos = skipped_pos[1:]
+                        ordered_seq[cpos] = tok
+                    else:
+                        ordered_seq[pos] = tok
+                        pos += 1
+        except Exception as e:
+            print(seq)
+            raise(e)
         return ''.join(ordered_seq).replace(cls.space_char, ' ')
 
     @classmethod
