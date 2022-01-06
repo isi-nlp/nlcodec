@@ -512,7 +512,8 @@ class BPEScheme(CharScheme):
                      f'Treating vocab_size as maximum size')
             vocab_size = sys.maxsize
         assert vocab_size > 0
-        assert not kwargs, f'{kwargs} args are not allowed/understood'
+        # Disabling to work with the scripts ( prep scripts )
+        # assert not kwargs, f'{kwargs} args are not allowed/understood'
         if term_freqs:
             log.info("Reading term freqs from input")
             tfs, line_count = WordScheme.read_term_freqs(data)
