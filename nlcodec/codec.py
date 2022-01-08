@@ -1124,14 +1124,14 @@ class ExtMWEScheme(BPEScheme):
     skip_tok = SKIP_TOK[0]
 
     def __init__(self, table:List['Type']):
-        log.info('Loading Skip Scheme ...')
+        log.info('Loading Ext MWE Scheme ...')
         super().__init__(table=table)
 
         # ssi : skip start index
-        ssi = self._get_skips_start_index(table)
+        # ssi = self._get_skips_start_index(table)
 
         # regular token trie
-        self.root = self.make_vocab_prefix_trie(self.table[:ssi])
+        self.root = self.make_vocab_prefix_trie(self.table)
         
         ## Either use a seperate trie for the skipgrams
         
