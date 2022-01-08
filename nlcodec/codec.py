@@ -834,39 +834,86 @@ class SkipScheme(BPEScheme):
 
         return None, None
 
-    @classmethod
-    def decode_str(cls, seq:List[str]) -> str:
-        
-        ordered_seq = [None]*len(seq)
+    # This implementation only works with 1-skip tokens.
+    def decode_str(self, seq: List[str]) -> str:
+        decoded_seq = []
+        to_add = set()
+        tok_to_add = dict()
+
+        idx = 0
         pos = 0
-        skipped_pos = []
-        try:
-            for tok in seq:
-                if tok == cls.skip_tok:
-                    continue
-                nskips = coll.Counter(tok).get(cls.skip_char,0)
-                if nskips:
-                    xtok = tok.replace(cls.skip_char, f'{cls.skip_char} ')
-                    xtok = xtok.replace(cls.space_char, f'{cls.space_char} ')
-                    parts = xtok.split()
-                    for ix, part in enumerate(parts):
-                        if part != cls.skip_char:
-                            ordered_seq[pos+ix] = part
-                        else:
-                            skipped_pos.append(pos+ix)
-                    pos += len(parts)
-                else:
-                    if len(skipped_pos) != 0:
-                        cpos = skipped_pos[0]
-                        skipped_pos = skipped_pos[1:]
-                        ordered_seq[cpos] = tok
-                    else:
-                        ordered_seq[pos] = tok
-                        pos += 1
-        except Exception as e:
-            print(seq)
-            raise(e)
-        return ''.join(ordered_seq).replace(cls.space_char, ' ')
+        while idx < len(seq):
+            if pos in to_add:
+                decoded_seq.append(tok_to_add[pos])
+                to_add.remove(pos)
+                pos += 1
+                continue
+
+            if self.skip_char not in seq[idx]:
+                decoded_seq.append(seq[idx])
+            else:
+                toks = seq[idx].split(self.skip_char)
+                decoded_seq.append(toks[0])
+                to_add.add(pos+2)
+                tok_to_add[pos+2]=toks[1]
+
+            idx += 1
+            pos += 1
+
+        if len(to_add) != 0:
+            decoded_seq.append(self.skip_tok)
+            decoded_seq.append(tok_to_add[pos+1])
+
+        return ''.join(decoded_seq).replace(self.space_char, ' ')
+
+    # @classmethod
+    # def decode_str(cls, seq:List[str]) -> str:
+        
+    #     ordered_seq = [None]*len(seq)
+        
+    #     decoded_seq = []
+    #     to_add = set()
+    #     tok_to_add = dict()
+
+    #     pos = 0
+    #     idx = 0
+
+    #     while idx < len(seq):
+    #         if pos in to_add:
+    #             decoded_seq.append(tok_to_add[pos])
+    #             to_add.remove(pos)
+    #             continue
+
+
+
+    #     skipped_pos = []
+    #     try:
+    #         for tok in seq:
+    #             if tok == cls.skip_tok:
+    #                 continue
+    #             nskips = coll.Counter(tok).get(cls.skip_char,0)
+    #             if nskips:
+    #                 xtok = tok.replace(cls.skip_char, f'{cls.skip_char} ')
+    #                 xtok = xtok.replace(cls.space_char, f'{cls.space_char} ')
+    #                 parts = xtok.split()
+    #                 for ix, part in enumerate(parts):
+    #                     if part != cls.skip_char:
+    #                         ordered_seq[pos+ix] = part
+    #                     else:
+    #                         skipped_pos.append(pos+ix)
+    #                 pos += len(parts)
+    #             else:
+    #                 if len(skipped_pos) != 0:
+    #                     cpos = skipped_pos[0]
+    #                     skipped_pos = skipped_pos[1:]
+    #                     ordered_seq[cpos] = tok
+    #                 else:
+    #                     ordered_seq[pos] = tok
+    #                     pos += 1
+    #     except Exception as e:
+    #         print(seq)
+    #         raise(e)
+    #     return ''.join(ordered_seq).replace(cls.space_char, ' ')
 
     @classmethod
     def skipgram_frequencies(cls, data:Iterator[str], 
@@ -1066,6 +1113,193 @@ class MWEScheme(SkipScheme):
                                 mwes, toks_list)
 
 
+class ExtMWEScheme(BPEScheme):
+
+    PLACE_TOK = '▂', 6 # U+2582 ??
+    SKIP_TOK = '<skp>', 7
+    TOKS = [PLACE_TOK, SKIP_TOK]
+    
+    space_char = Reseved.SPACE_TOK[0]
+    skip_char = PLACE_TOK[0]
+    skip_tok = SKIP_TOK[0]
+
+    def __init__(self, table:List['Type']):
+        log.info('Loading Skip Scheme ...')
+        super().__init__(table=table)
+
+        # ssi : skip start index
+        ssi = self._get_skips_start_index(table)
+
+        # regular token trie
+        self.root = self.make_vocab_prefix_trie(self.table[:ssi])
+        
+        ## Either use a seperate trie for the skipgrams
+        
+        assert self.unk_idx
+
+    def encode(self, line: str, split_ratio: float = 0.) -> List[int]:
+        pieces = self.encode_str(line, split_ratio=split_ratio)
+        return [self.str_to_idx.get(piece, self.unk_idx) for piece in pieces]
+
+    def encode_str(self, line:str, split_ratio: float - 0.) -> List[str]:
+        
+        # First pass : Exactly similar to BPE
+        pieces = super().encode_str(line, split_ratio)
+
+        # Second pass : Merge skipgrams from pieces
+        possible_skips = set()
+        for i in range(len(pieces)-1):
+            piece = self.skip_char.join([ pieces[i], pieces[i+2] ])
+            sub_pieces = super().encode_str(piece, split_ratio)
+            if len(sub_pieces) == 1:
+                possible_skips.add(i)
+
+        final_pieces = []
+        already_added = set()
+        for i, piece in enumerate(pieces):
+            if i in already_added:
+                final_pieces.append(self.skip_tok)
+                continue
+
+            if i not in possible_skips:
+                final_pieces.append(piece)
+            else:
+                final_pieces.append(self.skip_char.join( [piece , pieces[i+2]] ))
+                already_added.add(i+2)
+
+        return final_pieces
+
+    def decode_str(self, seq : List[str])-> str:
+        
+        decoded_seq = []
+        to_add = set()
+        tok_to_add = dict()
+
+        idx = 0
+        pos = 0
+        while idx < len(seq):
+            if pos in to_add:
+                decoded_seq.append(tok_to_add[pos])
+                to_add.remove(pos)
+                pos += 1
+                continue
+
+            if self.skip_char not in seq[idx]:
+                decoded_seq.append(seq[idx])
+            else:
+                toks = seq[idx].split(self.skip_char)
+                decoded_seq.append(toks[0])
+                to_add.add(pos+2)
+                tok_to_add[pos+2]=toks[1]
+
+            idx += 1
+            pos += 1
+
+        if len(to_add) != 0:
+            decoded_seq.append(self.skip_tok)
+            decoded_seq.append(tok_to_add[pos+1])
+
+        return ''.join(decoded_seq).replace(self.space_char, ' ')
+
+    @classmethod
+    def learn(cls, data:Iterator[str], vocab_size:int=0, 
+            global_list_file:Union[str, Path]=None,
+            max_mwes:int=-1):
+        base = BPEScheme.learn(data, vocab_size)
+
+        if global_list_file is None:
+            return base
+
+        bis, tris, skips = cls.load_global_list(global_list_file)
+
+        ## When the value for max_mwes is not set up we will replace all the
+        ## tokens that we can ( keeping the sorted by the frequency maintained )
+        ## When the value is set we will check how many tokens can be replaced 
+        ## ( the number may be less than the specified by the number )
+        ## Should we add the mwes at the end in the first case as well ??
+        ## Process scan through all the lists and create a shortened list of tokens
+        ## that will be included in the list. ( when no value is set ) and then if the
+        ## value is set then we can merge the mwes by the frequency.
+
+        filtered_bis , filtered_tris , filtered_skips = [], [], []
+
+        count = 0
+        idx, bidx, tidx, sidx = 0,0,0,0
+
+        while count < vocab_size:
+            max_freq = max(base[idx].freq, bis[bidx].freq , tris[tidx].freq, skips[sidx].freq)
+            # Ask ( which token to get preference here ) ??
+            if max_freq == skips[sidx].freq:
+                sidx += 1
+            elif max_freq == tris[tidx].freq:
+                tidx += 1
+            elif max_freq == bis[bidx].freq:
+                bidx += 1
+            else:
+                idx += 1
+            count += 1
+
+        # Do we need this hyper parameter as of now ??
+        if max_mwes != -1:
+            pass
+
+        mwes = []
+        mwes.update(base[:idx])
+        mwes.update(bis[:bidx])
+        mwes.update(tris[:tidx])
+        mwes.update(skips[:sidx])
+
+        assert len(mwes) == vocab_size , "The new prepped MWEs is of length <  vocab_size"
+
+        idx = 0
+        for i in len(mwes):
+            mwes[i].idx = idx
+            idx += 1
+
+        return mwes
+
+    @classmethod
+    def load_global_list(cls, filepath:Union[str, Path]):
+        global_lists = json.loads(filepath.read_text())
+        bis = cls._make_ngram_types(global_lists['bi'])
+        tris = cls._make_ngram_types(global_lists['tris'])
+        skips = cls._make_skip_types(global_lists['skips'])
+        return bis, tris, skips
+
+    @classmethod
+    def _make_ngram_types(cls, ngram_list:List[List[str],int]):
+        types = []
+        idx = 0
+        for toks, freq in ngram_list:
+            name = cls.space_char.join(toks) + cls.space_char
+            types.append(Type(name, level=3, freq=freq, idx=idx))
+            idx += 1
+        return types
+
+    @classmethod
+    def _make_skip_types(cls, skips_list:List[List[str], int]):
+        types = []
+        idx = 0
+        for toks, freq in skips_list:
+            words = [ x + cls.space_char for x in toks ]
+            name = cls.skip_char.join(words)
+            types.append(Type(name, level=6, freq=freq, idx=idx))
+            idx += 1
+        return types
+
+    def _get_skips_start_index(self, table:List['Type']):
+        start, end = 0, len(table)-1
+        while start < end:
+            if end - start == 1:
+                break
+            mid = ( start + end ) // 2
+            name = table[mid].name
+            if self.skip_char in name:
+                end = mid
+            else:
+                start = mid
+        return end
+
 #########################
 REGISTRY = {
     'char': CharScheme,
@@ -1075,7 +1309,8 @@ REGISTRY = {
     'class': ClassScheme,
     'ngram': NgramScheme,
     'skipgram': SkipScheme,
-    'mwe': MWEScheme
+    'mwe': MWEScheme,
+    'extmwe' : ExtMWEScheme
 }
 
 
@@ -1112,7 +1347,7 @@ def load_scheme(path: Union[str, Path, TextIO]) -> EncoderScheme:
     else:
         # backward compatibility;
         max_level = meta['max_level']
-        levels = [CharScheme, BPEScheme, WordScheme, ClassScheme, NgramScheme, SkipScheme]
+        levels = [CharScheme, BPEScheme, WordScheme, ClassScheme, NgramScheme, SkipScheme, ExtMWEScheme]
         assert max_level < len(levels)
         log.info(f'Max Level for Vocab : {max_level}')
         Scheme = levels[max_level]
@@ -1123,7 +1358,7 @@ def get_scheme(pieces:str):
     if pieces in REGISTRY.keys():
         return REGISTRY[pieces]
     return ValueError(f'Piece {pieces} not available. \
-                Choices : [ char, word, bpe, ngram, skipgram, mwe ]')
+                Choices : [ char, word, bpe, ngram, skipgram, mwe, extmwe ]')
 
 
 def encode(inp: Iterator[str], scheme: EncoderScheme, indices=False) \
