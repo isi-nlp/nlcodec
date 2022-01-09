@@ -1141,18 +1141,28 @@ class ExtMWEScheme(BPEScheme):
         pieces = self.encode_str(line, split_ratio=split_ratio)
         return [self.str_to_idx.get(piece, self.unk_idx) for piece in pieces]
 
-    def encode_str(self, line:str, split_ratio: float - 0.) -> List[str]:
-        
+    def encode_str(self, line:str, split_ratio: float = 0.) -> List[str]:
+       
+        # print( "Line : ", line)
         # First pass : Exactly similar to BPE
         pieces = super().encode_str(line, split_ratio)
+        # print(pieces)
 
-        # Second pass : Merge skipgrams from pieces
-        possible_skips = set()
-        for i in range(len(pieces)-1):
-            piece = self.skip_char.join([ pieces[i], pieces[i+2] ])
-            sub_pieces = super().encode_str(piece, split_ratio)
-            if len(sub_pieces) == 1:
-                possible_skips.add(i)
+        try:
+            # Second pass : Merge skipgrams from pieces
+            # print()
+            # print("Running Second Pass...")
+            possible_skips = set()
+            for i in range(len(pieces)-2):
+                piece = self.skip_char.join([ pieces[i], pieces[i+2] ])
+                sub_pieces = super().encode_str(piece, split_ratio)
+                # print(str(i) , piece , sub_pieces)
+                # print()
+                if len(sub_pieces) == 2 and sub_pieces[1] == self.space_char:
+                    possible_skips.add(i)
+        except Exception as e:
+            print(pieces)
+            raise(e)
 
         final_pieces = []
         already_added = set()
@@ -1178,6 +1188,10 @@ class ExtMWEScheme(BPEScheme):
         idx = 0
         pos = 0
         while idx < len(seq):
+            if seq[idx] == self.skip_tok:
+                idx += 1
+                continue
+
             if pos in to_add:
                 decoded_seq.append(tok_to_add[pos])
                 to_add.remove(pos)
@@ -1196,7 +1210,7 @@ class ExtMWEScheme(BPEScheme):
             pos += 1
 
         if len(to_add) != 0:
-            decoded_seq.append(self.skip_tok)
+            decoded_seq.append(self.skip_tok+self.space_char)
             decoded_seq.append(tok_to_add[pos+1])
 
         return ''.join(decoded_seq).replace(self.space_char, ' ')
@@ -1221,11 +1235,28 @@ class ExtMWEScheme(BPEScheme):
         ## that will be included in the list. ( when no value is set ) and then if the
         ## value is set then we can merge the mwes by the frequency.
 
-        filtered_bis , filtered_tris , filtered_skips = [], [], []
+        mwes = Reseved.with_reserved_types()
+        nreserved = len(mwes)
+        # print("nreserved ",nreserved)
+        # print([x.name for x in mwes])
+        # print([base[i].name for i in range(nreserved)])
 
-        count = 0
-        idx, bidx, tidx, sidx = 0,0,0,0
+        idx, bidx, tidx, sidx = nreserved,0,0,0
 
+        # print(idx, bidx, sidx, tidx)
+
+        # print(cls.TOKS)
+        for tok in cls.TOKS:
+            name, tid = tok
+            mwes.append(Type(name, freq=0, level=-1, idx=tid))
+
+
+        count = len(mwes)
+        # print([base[i].name for i in range(count)])
+
+        #count = len(mwes)
+        # print("count ", count)
+        
         while count < vocab_size:
             max_freq = max(base[idx].freq, bis[bidx].freq , tris[tidx].freq, skips[sidx].freq)
             # Ask ( which token to get preference here ) ??
@@ -1243,17 +1274,21 @@ class ExtMWEScheme(BPEScheme):
         if max_mwes != -1:
             pass
 
-        mwes = []
-        mwes.update(base[:idx])
-        mwes.update(bis[:bidx])
-        mwes.update(tris[:tidx])
-        mwes.update(skips[:sidx])
+        # print(idx, bidx, tidx, sidx)
+
+        mwes.extend(base[nreserved:idx])
+        mwes.extend(bis[:bidx])
+        mwes.extend(tris[:tidx])
+        mwes.extend(skips[:sidx])
+
+        # print(len(mwes))
 
         assert len(mwes) == vocab_size , "The new prepped MWEs is of length <  vocab_size"
 
         idx = 0
-        for i in len(mwes):
-            mwes[i].idx = idx
+        for i in range(len(mwes)):
+            t = mwes[i]
+            mwes[i] = Type(t.name, freq=t.freq, level=t.level, idx=idx)
             idx += 1
 
         return mwes
@@ -1262,22 +1297,23 @@ class ExtMWEScheme(BPEScheme):
     def load_global_list(cls, filepath:Union[str, Path]):
         global_lists = json.loads(filepath.read_text())
         bis = cls._make_ngram_types(global_lists['bi'])
-        tris = cls._make_ngram_types(global_lists['tris'])
-        skips = cls._make_skip_types(global_lists['skips'])
+        tris = cls._make_ngram_types(global_lists['tri'])
+        skips = cls._make_skip_types(global_lists['ski'])
         return bis, tris, skips
 
     @classmethod
-    def _make_ngram_types(cls, ngram_list:List[List[str],int]):
+    def _make_ngram_types(cls, ngram_list):
         types = []
         idx = 0
         for toks, freq in ngram_list:
             name = cls.space_char.join(toks) + cls.space_char
             types.append(Type(name, level=3, freq=freq, idx=idx))
             idx += 1
+        types.append(Type("null", freq=-1, level=3, idx=idx))
         return types
 
     @classmethod
-    def _make_skip_types(cls, skips_list:List[List[str], int]):
+    def _make_skip_types(cls, skips_list):
         types = []
         idx = 0
         for toks, freq in skips_list:
@@ -1285,6 +1321,7 @@ class ExtMWEScheme(BPEScheme):
             name = cls.skip_char.join(words)
             types.append(Type(name, level=6, freq=freq, idx=idx))
             idx += 1
+        types.append(Type("null", freq=-1, level=6, idx=idx))
         return types
 
     def _get_skips_start_index(self, table:List['Type']):
