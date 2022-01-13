@@ -1235,10 +1235,6 @@ class ExtMWEScheme(BPEScheme):
         ## tokens that we can ( keeping the sorted by the frequency maintained )
         ## When the value is set we will check how many tokens can be replaced 
         ## ( the number may be less than the specified by the number )
-        ## Should we add the mwes at the end in the first case as well ??
-        ## Process scan through all the lists and create a shortened list of tokens
-        ## that will be included in the list. ( when no value is set ) and then if the
-        ## value is set then we can merge the mwes by the frequency.
 
         mwes = Reseved.with_reserved_types()
         nreserved = len(mwes)
@@ -1284,34 +1280,67 @@ class ExtMWEScheme(BPEScheme):
             pass
 
         print(curr_indexes)
-        # print(idx, bidx, tidx, sidx)
 
-        mwes.extend(types_lists[nreserved:curr_indexes[-1]])
-        for i in range(nlists-1):
-            nc = nlists - (2+i)
-            mwes.extend(types_lists[:curr_indexes[nc]])
+        mwes.extend(base[nreserved:curr_indexes[-1]])
+
+        # Readjusting the ids of tokens in vocabs
+        mwes = cls.readjust_idx(mwes)
+
+        # Merging different mwe token lists to main list
+        trimmed_lists = [types_lists[i][:curr_indexes[i]] for i in range(len(types_lists)-1)]
+        mwes = cls.merge_types_lists(mwes, trimmed_lists)
 
         # print(len(mwes))
-
-        assert len(mwes) == vocab_size , "The new prepped MWEs is of length <  vocab_size"
-
-        idx = 0
-        for i in range(len(mwes)):
-            t = mwes[i]
-            mwes[i] = Type(t.name, freq=t.freq, level=t.level, idx=idx)
-            idx += 1
+        assert len(mwes) == vocab_size , "The new prepped MWEs is of length !=  vocab_size"
 
         return mwes
 
 
     @classmethod
+    def readjust_idx(cls, tokens):
+        res = []
+        for i, token in enumerate(tokens):
+            res.append(Type(token.name, freq=token.freq, level=token.level, idx=i, kids=token.kids))
+        return res
+
+
+    @classmethod
+    def merge_types_lists(cls, mwes, types_lists):
+        rev_idx = { t.name:t.idx for t in mwes }
+        vocab = BPEScheme(mwes)
+
+        unwrapped_list = []
+        for i in range(len(types_lists)):
+            unwrapped_lists.extend(types_lists[i])
+
+        for token in unwrapped_lists:
+            
+            name = token.name.replace(cls.space_char, f'{cls.space_char} ')
+            name = name.replace(cls.skip_char, f'{cls.skip_char} ')
+            
+            parts = name.strip().split()
+            kids = []
+            for part in parts:
+                if part in rev_idx.keys():
+                    kids.append(mwes[rev_idx[part]])
+                else:
+                    encoded = vocab.encode_str(part)
+                    kids.extend([mwes[ix] for ix in encoded])
+
+            mwes.append(Type(name, freq=token.freq, level=token.level, idx=len(mwes), kids=kids))
+            rev_idx[name] = len(mwes)-1
+        
+        return mwes
+
+
+    @classmethod
     def make_types_from_lists(cls, mwe_lists):
-        order = ["bi", "tri", "ski"]
+        keys = ["bi", "tri", "ski"]
         lists = []
-        for key in order:
+        for key in keys:
             if key in mwe_lists.keys():
                 if key == "ski":
-                    lists.append(cls._make_sgram_types(mwe_lists[key]))
+                    lists.append(cls._make_skip_types(mwe_lists[key]))
                 else:
                     lists.append(cls._make_ngram_types(mwe_lists[key]))
         return lists
