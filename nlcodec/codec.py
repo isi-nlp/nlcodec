@@ -843,6 +843,10 @@ class SkipScheme(BPEScheme):
         idx = 0
         pos = 0
         while idx < len(seq):
+            if seq[idx] == self.skip_tok:
+                idx += 1
+                continue
+
             if pos in to_add:
                 decoded_seq.append(tok_to_add[pos])
                 to_add.remove(pos)
@@ -861,7 +865,7 @@ class SkipScheme(BPEScheme):
             pos += 1
 
         if len(to_add) != 0:
-            decoded_seq.append(self.skip_tok)
+            decoded_seq.append(self.skip_tok+self.space_char)
             decoded_seq.append(tok_to_add[pos+1])
 
         return ''.join(decoded_seq).replace(self.space_char, ' ')
@@ -1217,14 +1221,15 @@ class ExtMWEScheme(BPEScheme):
 
     @classmethod
     def learn(cls, data:Iterator[str], vocab_size:int=0, 
-            global_list_file:Union[str, Path]=None,
+            mwe_lists:Dict[str, List[Tuple[List[str], int]]]=None,
             max_mwes:int=-1):
         base = BPEScheme.learn(data, vocab_size)
 
-        if global_list_file is None:
+        if mwe_lists is None:
             return base
 
-        bis, tris, skips = cls.load_global_list(global_list_file)
+        types_lists = cls.make_types_from_lists(mwe_lists)
+        types_lists.append(base)
 
         ## When the value for max_mwes is not set up we will replace all the
         ## tokens that we can ( keeping the sorted by the frequency maintained )
@@ -1237,49 +1242,54 @@ class ExtMWEScheme(BPEScheme):
 
         mwes = Reseved.with_reserved_types()
         nreserved = len(mwes)
+        
         # print("nreserved ",nreserved)
         # print([x.name for x in mwes])
         # print([base[i].name for i in range(nreserved)])
 
-        idx, bidx, tidx, sidx = nreserved,0,0,0
+        nlists = len(types_lists)
+
+        curr_indexes = [ 0 for x in range(nlists) ]
+        curr_indexes[-1] = nreserved
 
         # print(idx, bidx, sidx, tidx)
-
         # print(cls.TOKS)
+        print(curr_indexes)
+
         for tok in cls.TOKS:
             name, tid = tok
             mwes.append(Type(name, freq=0, level=-1, idx=tid))
 
-
         count = len(mwes)
-        # print([base[i].name for i in range(count)])
 
-        #count = len(mwes)
+        # print([base[i].name for i in range(count)])
         # print("count ", count)
         
         while count < vocab_size:
-            max_freq = max(base[idx].freq, bis[bidx].freq , tris[tidx].freq, skips[sidx].freq)
+            max_freq = max([types_lists[i][p].freq for i,p in enumerate(curr_indexes)])
             # Ask ( which token to get preference here ) ??
-            if max_freq == skips[sidx].freq:
-                sidx += 1
-            elif max_freq == tris[tidx].freq:
-                tidx += 1
-            elif max_freq == bis[bidx].freq:
-                bidx += 1
-            else:
-                idx += 1
+            
+            for i in range(nlists):
+                nc = nlists - (1+i)
+                pos = curr_indexes[nc]
+                if max_freq == types_lists[nc][pos].freq:
+                    # mwes.append(types_lists[nc][pos])
+                    curr_indexes[nc] += 1
+                    break
+
             count += 1
 
         # Do we need this hyper parameter as of now ??
         if max_mwes != -1:
             pass
 
+        print(curr_indexes)
         # print(idx, bidx, tidx, sidx)
 
-        mwes.extend(base[nreserved:idx])
-        mwes.extend(bis[:bidx])
-        mwes.extend(tris[:tidx])
-        mwes.extend(skips[:sidx])
+        mwes.extend(types_lists[nreserved:curr_indexes[-1]])
+        for i in range(nlists-1):
+            nc = nlists - (2+i)
+            mwes.extend(types_lists[:curr_indexes[nc]])
 
         # print(len(mwes))
 
@@ -1293,13 +1303,19 @@ class ExtMWEScheme(BPEScheme):
 
         return mwes
 
+
     @classmethod
-    def load_global_list(cls, filepath:Union[str, Path]):
-        global_lists = json.loads(filepath.read_text())
-        bis = cls._make_ngram_types(global_lists['bi'])
-        tris = cls._make_ngram_types(global_lists['tri'])
-        skips = cls._make_skip_types(global_lists['ski'])
-        return bis, tris, skips
+    def make_types_from_lists(cls, mwe_lists):
+        order = ["bi", "tri", "ski"]
+        lists = []
+        for key in order:
+            if key in mwe_lists.keys():
+                if key == "ski":
+                    lists.append(cls._make_sgram_types(mwe_lists[key]))
+                else:
+                    lists.append(cls._make_ngram_types(mwe_lists[key]))
+        return lists
+
 
     @classmethod
     def _make_ngram_types(cls, ngram_list):
@@ -1324,20 +1340,9 @@ class ExtMWEScheme(BPEScheme):
         types.append(Type("null", freq=-1, level=6, idx=idx))
         return types
 
-    def _get_skips_start_index(self, table:List['Type']):
-        start, end = 0, len(table)-1
-        while start < end:
-            if end - start == 1:
-                break
-            mid = ( start + end ) // 2
-            name = table[mid].name
-            if self.skip_char in name:
-                end = mid
-            else:
-                start = mid
-        return end
 
 #########################
+
 REGISTRY = {
     'char': CharScheme,
     'word': WordScheme,
