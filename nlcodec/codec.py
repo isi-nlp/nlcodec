@@ -1311,9 +1311,9 @@ class ExtMWEScheme(BPEScheme):
 
         unwrapped_list = []
         for i in range(len(types_lists)):
-            unwrapped_lists.extend(types_lists[i])
+            unwrapped_list.extend(types_lists[i])
 
-        for token in unwrapped_lists:
+        for token in unwrapped_list:
             
             name = token.name.replace(cls.space_char, f'{cls.space_char} ')
             name = name.replace(cls.skip_char, f'{cls.skip_char} ')
