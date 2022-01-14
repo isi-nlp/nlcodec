@@ -1318,16 +1318,16 @@ class ExtMWEScheme(BPEScheme):
             name = token.name.replace(cls.space_char, f'{cls.space_char} ')
             name = name.replace(cls.skip_char, f'{cls.skip_char} ')
             
-            parts = name.strip().split()
+            parts = token.kids
             kids = []
             for part in parts:
                 if part in rev_idx.keys():
                     kids.append(mwes[rev_idx[part]])
                 else:
-                    encoded = vocab.encode_str(part)
-                    kids.extend([mwes[ix] for ix in encoded])
+                    encoded = vocab.encode(part)
+                    kids.extend([mwes[ix] for ix in encoded[:-1]])
 
-            mwes.append(Type(name, freq=token.freq, level=token.level, idx=len(mwes), kids=kids))
+            mwes.append(Type(token.name, freq=token.freq, level=token.level, idx=len(mwes), kids=kids))
             rev_idx[name] = len(mwes)-1
         
         return mwes
@@ -1351,8 +1351,10 @@ class ExtMWEScheme(BPEScheme):
         types = []
         idx = 0
         for toks, freq in ngram_list:
-            name = cls.space_char.join(toks) + cls.space_char
-            types.append(Type(name, level=3, freq=freq, idx=idx))
+            parts = [tok.replace('_', cls.space_char) if '_' in tok else tok for tok in toks]
+            parts = [ part+cls.space_char for part in parts ]
+            name = ''.join(parts)
+            types.append(Type(name, level=3, freq=freq, idx=idx, kids=parts))
             idx += 1
         types.append(Type("null", freq=-1, level=3, idx=idx))
         return types
@@ -1362,9 +1364,11 @@ class ExtMWEScheme(BPEScheme):
         types = []
         idx = 0
         for toks, freq in skips_list:
-            words = [ x + cls.space_char for x in toks ]
-            name = cls.skip_char.join(words)
-            types.append(Type(name, level=6, freq=freq, idx=idx))
+            parts = [ tok.replace('_', cls.space_char) if '_' in tok else tok  for tok in toks ]
+            parts = [ part+cls.space_char for part in parts ]
+            parts = [ parts[0], cls.skip_char, parts[1] ]
+            name = ''.join(parts)
+            types.append(Type(name, level=6, freq=freq, idx=idx, kids=parts))
             idx += 1
         types.append(Type("null", freq=-1, level=6, idx=idx))
         return types
