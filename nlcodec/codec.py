@@ -172,9 +172,15 @@ class Type:  # Type as in word type vs token
 
     def get_stochastic_split(self, name=False, split_ratio=0.1):
         if self.kids and random.random() < split_ratio:
-            left, right = self.kids
-            return left.get_stochastic_split(name=name, split_ratio=split_ratio) \
-                   + right.get_stochastic_split(name=name, split_ratio=split_ratio)
+            # left, right = self.kids
+            # return left.get_stochastic_split(name=name, split_ratio=split_ratio) \
+            #        + right.get_stochastic_split(name=name, split_ratio=split_ratio)
+            kids = self.kids
+            res = []
+            for t in kids:
+                split = t.get_stochastic_split(name=name, split_ratio=split_ratio)
+                res.extend(split)
+            return res
         else:
             return [self.name if name else self.idx]
 
