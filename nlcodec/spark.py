@@ -26,7 +26,9 @@ def get_session(app_name="NLCodec", master=None, driver_mem=None, config: Dict[s
     driver_mem = driver_mem or os.environ.get("SPARK_DRIVER_MEM", "4g")
     builder = (SparkSession.builder.appName(app_name)
                .master(master or os.environ.get("SPARK_MASTER", "local[*]"))
-               .config("spark.driver.memory", driver_mem))
+               .config("spark.driver.memory", driver_mem)
+               .config("spark.driver.maxResultSize", "0"))
+
     if config:
         for k, v in config.items():
             builder.config(k, v)
