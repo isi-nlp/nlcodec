@@ -849,14 +849,14 @@ class SkipScheme(BPEScheme):
         idx = 0
         pos = 0
         while idx < len(seq):
-            if seq[idx] == self.skip_tok:
-                idx += 1
-                continue
-
             if pos in to_add:
                 decoded_seq.append(tok_to_add[pos])
                 to_add.remove(pos)
                 pos += 1
+                continue
+
+            if seq[idx] == self.skip_tok:
+                idx += 1
                 continue
 
             if self.skip_char not in seq[idx]:
@@ -1165,13 +1165,13 @@ class ExtMWEScheme(BPEScheme):
             possible_skips = set()
             for i in range(len(pieces)-2):
                 piece = self.skip_char.join([ pieces[i], pieces[i+2] ])
-                sub_pieces = super().encode_str(piece, split_ratio)
+                sub_pieces = super().encode_str(piece)
                 # print(str(i) , piece , sub_pieces)
                 # print()
                 if len(sub_pieces) == 2 and sub_pieces[1] == self.space_char:
                     possible_skips.add(i)
         except Exception as e:
-            print(pieces)
+            print("[ERROR] : ", pieces)
             raise(e)
 
         final_pieces = []
@@ -1198,14 +1198,14 @@ class ExtMWEScheme(BPEScheme):
         idx = 0
         pos = 0
         while idx < len(seq):
-            if seq[idx] == self.skip_tok:
-                idx += 1
-                continue
-
             if pos in to_add:
                 decoded_seq.append(tok_to_add[pos])
                 to_add.remove(pos)
                 pos += 1
+                continue
+
+            if seq[idx] == self.skip_tok:
+                idx += 1
                 continue
 
             if self.skip_char not in seq[idx]:
@@ -1229,6 +1229,7 @@ class ExtMWEScheme(BPEScheme):
     def learn(cls, data:Iterator[str], vocab_size:int=0, 
             mwe_lists:Dict[str, List[Tuple[List[str], int]]]=None,
             max_mwes:int=-1):
+
         base = BPEScheme.learn(data, vocab_size)
 
         if mwe_lists is None:
@@ -1298,7 +1299,7 @@ class ExtMWEScheme(BPEScheme):
 
         # print(len(mwes))
         assert len(mwes) == vocab_size , "The new prepped MWEs is of length !=  vocab_size"
-
+        
         return mwes
 
 
