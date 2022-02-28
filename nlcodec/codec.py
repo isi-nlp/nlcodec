@@ -1197,31 +1197,38 @@ class ExtMWEScheme(BPEScheme):
 
         idx = 0
         pos = 0
-        while idx < len(seq):
-            if pos in to_add:
-                decoded_seq.append(tok_to_add[pos])
-                to_add.remove(pos)
-                pos += 1
-                continue
 
-            if seq[idx] == self.skip_tok:
+        try:
+            while idx < len(seq):
+                if pos in to_add:
+                    decoded_seq.append(tok_to_add[pos])
+                    to_add.remove(pos)
+                    pos += 1
+                    continue
+
+                if seq[idx] == self.skip_tok:
+                    idx += 1
+                    continue
+
+                if self.skip_char not in seq[idx]:
+                    decoded_seq.append(seq[idx])
+                else:
+                    toks = seq[idx].split(self.skip_char)
+                    decoded_seq.append(toks[0])
+                    to_add.add(pos+2)
+                    tok_to_add[pos+2]=toks[1]
+
                 idx += 1
-                continue
+                pos += 1
 
-            if self.skip_char not in seq[idx]:
-                decoded_seq.append(seq[idx])
-            else:
-                toks = seq[idx].split(self.skip_char)
-                decoded_seq.append(toks[0])
-                to_add.add(pos+2)
-                tok_to_add[pos+2]=toks[1]
 
-            idx += 1
-            pos += 1
+            if len(to_add) != 0:
+                decoded_seq.append(self.skip_tok+self.space_char)
+                decoded_seq.append(tok_to_add[pos+1])
 
-        if len(to_add) != 0:
-            decoded_seq.append(self.skip_tok+self.space_char)
-            decoded_seq.append(tok_to_add[pos+1])
+        except Exception as e:
+            print(seq)
+
 
         return ''.join(decoded_seq).replace(self.space_char, ' ')
 
