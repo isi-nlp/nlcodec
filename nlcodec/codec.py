@@ -1237,6 +1237,7 @@ class ExtMWEScheme(BPEScheme):
             mwe_lists:Dict[str, List[Tuple[List[str], int]]]=None,
             max_mwes:int=-1):
 
+        print('Learning Stuff...')
         base = BPEScheme.learn(data, vocab_size)
 
         if mwe_lists is None:
@@ -1299,7 +1300,7 @@ class ExtMWEScheme(BPEScheme):
 
         # Readjusting the ids of tokens in vocabs
         mwes = cls.readjust_idx(mwes)
-
+        
         # Merging different mwe token lists to main list
         trimmed_lists = [types_lists[i][:curr_indexes[i]] for i in range(len(types_lists)-1)]
         mwes = cls.merge_types_lists(mwes, trimmed_lists)
@@ -1313,8 +1314,14 @@ class ExtMWEScheme(BPEScheme):
     @classmethod
     def readjust_idx(cls, tokens):
         res = []
+        rev_idx = dict()
         for i, token in enumerate(tokens):
-            res.append(Type(token.name, freq=token.freq, level=token.level, idx=i, kids=token.kids))
+            kids = None
+            if token.level > 0:
+                for tok in token.kids:
+                    kids.append(res[rev_idx[tok.name]]
+            res.append(Type(token.name, freq=token.freq, level=token.level, idx=i, kids=kids))
+            rev_idx[token.name] = i
         return res
 
 
