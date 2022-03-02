@@ -1316,11 +1316,11 @@ class ExtMWEScheme(BPEScheme):
         res = []
         rev_idx = dict()
         for i, token in enumerate(tokens):
-            kids = None
+            kids = []
             if token.level > 0:
                 for tok in token.kids:
-                    kids.append(res[rev_idx[tok.name]]
-            res.append(Type(token.name, freq=token.freq, level=token.level, idx=i, kids=kids))
+                    kids.append(res[rev_idx[tok.name]])
+            res.append(Type(token.name, freq=token.freq, level=token.level, idx=i, kids=(kids if len(kids) != 0 else None)))
             rev_idx[token.name] = i
         return res
 
