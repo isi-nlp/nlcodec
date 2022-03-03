@@ -1320,7 +1320,9 @@ class ExtMWEScheme(BPEScheme):
             if token.level > 0:
                 for tok in token.kids:
                     kids.append(res[rev_idx[tok.name]])
-            res.append(Type(token.name, freq=token.freq, level=token.level, idx=i, kids=(kids if len(kids) != 0 else None)))
+            if len(kids) == 0:
+                kids = None
+            res.append(Type(token.name, freq=token.freq, level=token.level, idx=i, kids=kids))
             rev_idx[token.name] = i
         return res
 
@@ -1375,7 +1377,7 @@ class ExtMWEScheme(BPEScheme):
             parts = [tok.replace('_', cls.space_char) if '_' in tok else tok for tok in toks]
             parts = [ part+cls.space_char for part in parts ]
             name = ''.join(parts)
-            types.append(Type(name, level=3, freq=freq, idx=idx, kids=parts))
+            types.append(Type(name, level=6, freq=freq, idx=idx, kids=parts))
             idx += 1
         types.append(Type("null", freq=-1, level=3, idx=idx))
         return types
