@@ -1244,7 +1244,7 @@ class ExtMWEScheme(BPEScheme):
             return base
 
         types_lists = cls.make_types_from_lists(mwe_lists)
-        types_lists.append(base)
+        #types_lists.append(base)
 
         ## When the value for max_mwes is not set up we will replace all the
         ## tokens that we can ( keeping the sorted by the frequency maintained )
@@ -1261,42 +1261,46 @@ class ExtMWEScheme(BPEScheme):
         nlists = len(types_lists)
 
         curr_indexes = [ 0 for x in range(nlists) ]
-        curr_indexes[-1] = nreserved
-
-        # print(idx, bidx, sidx, tidx)
-        # print(cls.TOKS)
-        print(curr_indexes)
 
         for tok in cls.TOKS:
             name, tid = tok
             mwes.append(Type(name, freq=0, level=-1, idx=tid))
 
-        count = len(mwes)
-
         # print([base[i].name for i in range(count)])
         # print("count ", count)
         
-        while count < vocab_size:
-            max_freq = max([types_lists[i][p].freq for i,p in enumerate(curr_indexes)])
-            # Ask ( which token to get preference here ) ??
-            
-            for i in range(nlists):
-                nc = nlists - (1+i)
-                pos = curr_indexes[nc]
-                if max_freq == types_lists[nc][pos].freq:
-                    # mwes.append(types_lists[nc][pos])
-                    curr_indexes[nc] += 1
-                    break
-
-            count += 1
-
-        # Do we need this hyper parameter as of now ??
-        if max_mwes != -1:
-            pass
+        if max_mwes == -1:
+            count = len(mwes)
+            while count < vocab_size:
+                max_freq = max([types_lists[i][p].freq for i,p in enumerate(curr_indexes)])
+                if base[base_index].freq > max_freq:
+                    base_index += 1
+                    count += 1
+                    continue
+                for i in range(nlists):
+                    nc = nlists - (1+i)
+                    pos = curr_indexes[nc]
+                    if max_freq == types_lists[nc][pos].freq:
+                        curr_indexes[nc] += 1
+                        break
+                count += 1
+        else:
+            count = 0
+            while count < max_mwes:
+                max_freq = max([types_lists[i][p].freq for i,p in enumerate(curr_indexes)])
+                for i in range(nlists):
+                    nc = nlists - (1+i)
+                    pos = curr_indexes[nc]
+                    if max_freq == types_lists[nc][pos].freq:
+                        curr_indexes[nc] += 1
+                        break
+                count += 1
+            base_index = vocab_size - max_mwes
+            base_index -= len(mwes)
+            base_index += nreserved
 
         print(curr_indexes)
-
-        mwes.extend(base[nreserved:curr_indexes[-1]])
+        mwes.extend(base[nreserved:base_index])
 
         # Readjusting the ids of tokens in vocabs
         mwes = cls.readjust_idx(mwes)
