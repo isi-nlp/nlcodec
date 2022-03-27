@@ -1306,7 +1306,7 @@ class ExtMWEScheme(BPEScheme):
         mwes = cls.readjust_idx(mwes)
         
         # Merging different mwe token lists to main list
-        trimmed_lists = [types_lists[i][:curr_indexes[i]] for i in range(len(types_lists)-1)]
+        trimmed_lists = [types_lists[i][:curr_indexes[i]] for i in range(len(types_lists))]
         mwes = cls.merge_types_lists(mwes, trimmed_lists)
 
         # print(len(mwes))
