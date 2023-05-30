@@ -44,7 +44,8 @@ class IdExample:
                 else:
                     self.y = seq
         else:  # should not have val at pos
-            assert seq[pos] != val
+            if seq[pos] == val:
+                log.warning(f'Example {self.id}: {side}[{pos}] == {val} is not expected')
 
     def eos_check(self, side, exist):
         raise
