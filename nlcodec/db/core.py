@@ -347,7 +347,7 @@ class MultipartDb:
             if self.keep_in_mem:
                 part = self.mem[idx]
             else:
-                part = Db.load(path, shuffle=self.shuffle)
+                part = Db.load(path, shuffle=self.shuffle, rec_type=self.rec_type)
             yield from part
 
     def make_eq_len_ran_batches(self, max_toks, max_sents=float('inf'), join_ratio=0.0) -> Iterator[List]:
