@@ -3,7 +3,7 @@
 # Author: Thamme Gowda [tg (at) isi (dot) edu] 
 # Created: 7/19/20
 
-from nlcodec.db.core import Db, MultipartDb, best_dtype, log
+from nlcodec.db.core import Db, MultipartDb, best_int_type as best_dtype, log
 from nlcodec import spark
 import numpy as np
 import random
