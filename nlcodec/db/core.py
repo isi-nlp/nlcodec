@@ -322,11 +322,11 @@ class MultipartDb:
 
     @classmethod
     def create(cls, path, recs, field_names, has_id=False, overwrite=False,
-               part_size=DEF_PART_SIZE, max_parts=DEF_MAX_PARTS):
+               part_size=DEF_PART_SIZE, max_parts=DEF_MAX_PARTS, dtypes=None):
         if not has_id:
             recs = enumerate(recs)
         builder = cls.Writer(path=path, field_names=field_names, overwrite=overwrite,
-                             max_parts=max_parts)
+                             max_parts=max_parts, dtypes=dtypes)
 
         part_num = -1
         for sliced in cls.slices(recs, part_size):
@@ -394,8 +394,9 @@ class MultipartDb:
     class Writer:
 
         def __init__(self, path, field_names: List[str], overwrite=False,
-                     max_parts=DEF_MAX_PARTS):
+                     max_parts=DEF_MAX_PARTS, dtypes=None):
             self.field_names = field_names
+            self.dtypes = dtypes
             path = as_path(path)
             if path.exists() and len(os.listdir(path)) > 0:
                 if overwrite:
@@ -406,10 +407,11 @@ class MultipartDb:
             path.mkdir(parents=True, exist_ok=True)
             self.path = path
             self.part_path_pad = part_path_pads(max_parts)
+            
 
         def __call__(self, part_num: int, recs):
             # assume recs have ids created externally
-            part = Db.create(recs, field_names=self.field_names, has_id=True)
+            part = Db.create(recs, field_names=self.field_names, has_id=True, dtypes=self.dtypes)
             part_path = self.path / f'part-{part_num:0{self.part_path_pad}d}'
             part.save(part_path)
             meta_path = part_path.with_suffix('.meta')
