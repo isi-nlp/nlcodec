@@ -251,7 +251,7 @@ class Db:
     def __iter__(self):
         ids = self.ids
         if self.shuffle:
-            ids = copy.copy(ids)
+            ids = list(ids)
             random.shuffle(ids)
         for _id in ids:
             yield self[_id]
